@@ -31,6 +31,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     NCPU=$(sysctl -n hw.ncpu)
     OSNAME=$(sw_vers -productName)
     OSVERSION=$(sw_vers -productVersion)
+
+    if [[ "$OSNAME" == "macOS" ]]; then
+        OSNAME="Mac OS X"
+    fi
 else
     NCPU=$(nproc)
 
@@ -107,7 +111,7 @@ install_libopenh264()
     cd ${DIR} && \
     curl -sSLf https://github.com/cisco/openh264/archive/refs/tags/v${OPENH264_VERSION}.tar.gz | tar -xz --strip-components=1 && \
     sed -i -e "s|PREFIX=/usr/local|PREFIX=${PREFIX}|" Makefile && \
-    make OS=linux && \
+    make #OS=linux && \
     sudo make install && \
     rm -rf ${DIR}) || fail_exit "openh264"
 
@@ -173,11 +177,11 @@ install_nasm()
     mkdir -p ${DIR} && \
     cd ${DIR} && \
     curl -sSLf https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-${NASM_VERSION}.tar.gz | tar -xz --strip-components=1 && \
-	./autogen.sh && \
+    ./autogen.sh && \
     ./configure --prefix="${PREFIX}" && \
     make -j$(nproc) && \
-	touch nasm.1 && \
-	touch ndisasm.1 && \
+    touch nasm.1 && \
+    touch ndisasm.1 && \
     sudo make install && \
     rm -rf ${DIR}) || fail_exit "nasm"
 }
@@ -275,24 +279,24 @@ install_ffmpeg()
 
     # Download
     if [ "$XILINX_XMA_CODEC_HWACCELS" = false ] ; then
-	    (rm -rf ${DIR}  && mkdir -p ${DIR} && \
-	    cd ${DIR} && \
-	    curl -sSLf ${FFMPEG_DOWNLOAD_URL} | tar -xz --strip-components=1 ) || fail_exit "ffmpeg"
+        (rm -rf ${DIR}  && mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sSLf ${FFMPEG_DOWNLOAD_URL} | tar -xz --strip-components=1 ) || fail_exit "ffmpeg"
     else
         # Download FFmpeg for xilinx video sdk 3.0
-	    (rm -rf ${DIR}  && mkdir -p ${DIR} && \
-	    git clone --depth=1 --branch U30_GA_3 https://github.com/Xilinx/app-ffmpeg4-xma.git ${DIR}) || fail_exit "ffmpeg"	
+        (rm -rf ${DIR}  && mkdir -p ${DIR} && \
+        git clone --depth=1 --branch U30_GA_3 https://github.com/Xilinx/app-ffmpeg4-xma.git ${DIR}) || fail_exit "ffmpeg"
     fi
-	
+
     # If there is an enable-nilogan option, add patch from libxcoder_logan-path 
-    if [ "$NETINT_LOGAN_HWACCELS" = true ] ; then		
+    if [ "$NETINT_LOGAN_HWACCELS" = true ] ; then
         echo "we are applying the patch founded in $NETINT_LOGAN_PATCH_PATH"
         patch_name=$(basename $NETINT_LOGAN_PATCH_PATH)
-        cp $NETINT_LOGAN_PATCH_PATH ${DIR}		
+        cp $NETINT_LOGAN_PATCH_PATH ${DIR}
         cd ${DIR} && patch -t -p 1 < $patch_name
         if [ "$NETINT_LOGAN_XCODER_COMPILE_PATH" != "" ] ; then
             cd $NETINT_LOGAN_XCODER_COMPILE_PATH && bash build.sh && ldconfig #the compilation of libxcoder_logan can be done before
-        fi		
+        fi
         ADDI_LIBS+=" --enable-libxcoder_logan --enable-ni_logan --enable-avfilter  --enable-pthreads "
         ADDI_ENCODER+=",h264_ni_logan,h265_ni_logan"
         ADDI_DECODER+=",h264_ni_logan,h265_ni_logan"
@@ -362,7 +366,7 @@ install_libpcre2()
 
 install_hiredis()
 {
-	(DIR=${TEMP_PATH}/hiredis && \
+    (DIR=${TEMP_PATH}/hiredis && \
     mkdir -p ${DIR} && \
     cd ${DIR} && \
     curl -sSLf https://github.com/redis/hiredis/archive/refs/tags/v${HIREDIS_VERSION}.tar.gz | tar -xz --strip-components=1 && \
@@ -447,11 +451,11 @@ check_version()
         proceed_yn
     fi
 
-	if [[ "${OSNAME}" == "Red" && "${OSVERSION}" != "8" ]]; then
+    if [[ "${OSNAME}" == "Red" && "${OSVERSION}" != "8" ]]; then
         proceed_yn
     fi
 
-	if [[ "${OSNAME}" == "Amazon Linux" && "${OSVERSION}" != "2" ]]; then
+    if [[ "${OSNAME}" == "Amazon Linux" && "${OSVERSION}" != "2" ]]; then
         proceed_yn
     fi
 }
@@ -479,18 +483,18 @@ case $i in
     shift
     ;;
     --enable-qsv)
-    INTEL_QSV_HWACCELS=true  
+    INTEL_QSV_HWACCELS=true
     shift
     ;;
-	--enable-nilogan)
-    NETINT_LOGAN_HWACCELS=true 	
+    --enable-nilogan)
+    NETINT_LOGAN_HWACCELS=true
     shift
-    ;;	
-	--nilogan-path=*)
+    ;;
+    --nilogan-path=*)
     NETINT_LOGAN_PATCH_PATH="${i#*=}" 
     shift
     ;;
-	--nilogan-xocder-compile-path=*)
+    --nilogan-xocder-compile-path=*)
     NETINT_LOGAN_XCODER_COMPILE_PATH="${i#*=}" 
     shift
     ;;
@@ -509,11 +513,11 @@ esac
 done
 
 
-if [ "$NETINT_LOGAN_HWACCELS" = true ] ; then	
-	if [[ ! -f $NETINT_LOGAN_PATCH_PATH ]]; then
-		echo "You have activated netint logan encoding but the patch path is not found"
-		exit 1
-	fi	
+if [ "$NETINT_LOGAN_HWACCELS" = true ] ; then
+    if [[ ! -f $NETINT_LOGAN_PATCH_PATH ]]; then
+        echo "You have activated netint logan encoding but the patch path is not found"
+        exit 1
+    fi
 fi
 
 
