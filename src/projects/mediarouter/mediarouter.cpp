@@ -93,8 +93,15 @@ bool MediaRouter::OnDeleteApplication(const info::Application &app_info)
 {
 	info::application_id_t application_id = app_info.GetId();
 
+	// zww:
+	auto media_route_app = GetRouteApplicationById(application_id);
+	if (media_route_app == nullptr)
+	{
+		return false;
+	}
+
 	// Remove from the Route App Map
-	_route_apps[application_id]->Stop();
+	media_route_app->Stop();
 
 	_route_apps.erase(application_id);
 
