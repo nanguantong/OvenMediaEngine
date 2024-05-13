@@ -130,6 +130,7 @@ static void OnFFmpegLog(void *avcl, int level, const char *fmt, va_list args)
 std::shared_ptr<ov::Error> InitializeFFmpeg()
 {
 	::av_log_set_callback(OnFFmpegLog);
+	// zww: AV_LOG_INFO
 	::av_log_set_level(AV_LOG_DEBUG);
 	::avformat_network_init();
 

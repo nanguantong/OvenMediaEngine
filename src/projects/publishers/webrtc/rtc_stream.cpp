@@ -843,7 +843,7 @@ uint32_t RtcStream::GetSsrc(cmn::MediaType media_type)
 }
 
 void RtcStream::AddPacketizer(const std::shared_ptr<const MediaTrack> &track)
-{	
+{
 	uint32_t ssrc = GetSsrc(track->GetMediaType());
 	uint8_t payload_type = PayloadTypeFromCodecId(track->GetCodecId());
 

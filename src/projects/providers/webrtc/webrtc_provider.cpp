@@ -276,7 +276,7 @@ namespace pvd
 		ov::String final_host_name = host_name;
 		ov::String final_stream_name = stream_name;
 
-		logtd("WebRTCProvider::OnAddRemoteDescription");
+		logtd("WebRTCProvider::OnRequestOffer");
 		auto request = ws_session->GetRequest();
 		auto remote_address = request->GetRemote()->GetRemoteAddress();
 		auto uri = request->GetUri();
