@@ -99,6 +99,7 @@
 					<!-- TcpForce is an option to force the use of TCP rather than UDP in WebRTC streaming. (You can omit ?transport=tcp accordingly.) If <TcpRelay> is not set, playback may fail. -->
 					<TcpForce>true</TcpForce>
 					<TcpRelayWorkerCount>1</TcpRelayWorkerCount>
+					<IceWorkerCount>1</IceWorkerCount>
 				</IceCandidates>
 			</WebRTC>
 		</Providers>
