@@ -946,17 +946,14 @@ void MediaRouteApplication::OutboundWorkerThread(uint32_t worker_id)
 			}
 		}
 
-		// mirror stream
+		// Mirror stream
 		{
 			std::shared_lock<std::shared_mutex> lock(_stream_taps_lock);
 			auto it = _stream_taps.equal_range(stream->GetStream()->GetId());
 			for (auto iter = it.first; iter != it.second; ++iter)
 			{
 				auto stream_tap = iter->second;
-				if (stream_tap->GetState() == MediaRouterStreamTap::State::Tapped)
-				{
-					stream_tap->Push(media_packet);
-				}
+				stream_tap->Push(media_packet);
 			}
 		}
 	}
