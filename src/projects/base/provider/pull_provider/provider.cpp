@@ -8,7 +8,7 @@
 //==============================================================================
 
 
-#include <zconf.h>
+// #include <zconf.h>
 #include "provider.h"
 #include "application.h"
 #include "stream.h"

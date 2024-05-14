@@ -11,7 +11,7 @@
 #include <pthread.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-#include <zconf.h>
+// #include <zconf.h>
 
 namespace ov
 {

@@ -138,7 +138,6 @@ namespace pvd
 										stream->ResetUrlIndex();
 										ResumeStream(stream);
 									}
-									
 								}
 								else 
 								{
