@@ -402,9 +402,9 @@ namespace pvd
 		}
 
 		int64_t adjusted_timestamp;
-		if (AdjustRtpTimestamp(first_rtp_packet->Ssrc(), first_rtp_packet->Timestamp(), std::numeric_limits<uint32_t>::max(), adjusted_timestamp) == false)
+		if (AdjustRtpTimestamp(ssrc, first_rtp_packet->Timestamp(), std::numeric_limits<uint32_t>::max(), adjusted_timestamp) == false)
 		{
-			logtd("not yet received sr packet : %u", first_rtp_packet->Ssrc());
+			logtd("not yet received sr packet : %u", ssrc);
 			// Prevents the stream from being deleted because there is no input data
 			MonitorInstance->IncreaseBytesIn(*Stream::GetSharedPtr(), bitstream->GetLength());
 			return;
@@ -445,8 +445,8 @@ namespace pvd
 		if (_fir_timer.IsElapsed(3000) && track->GetMediaType() == cmn::MediaType::Video)
 		{
 			_fir_timer.Update();
-			//_rtp_rtcp->SendPLI(first_rtp_packet->Ssrc());
-			_rtp_rtcp->SendFIR(first_rtp_packet->Ssrc());
+			//_rtp_rtcp->SendPLI(ssrc);
+			_rtp_rtcp->SendFIR(ssrc);
 		}
 
 		// Send Receiver Report
