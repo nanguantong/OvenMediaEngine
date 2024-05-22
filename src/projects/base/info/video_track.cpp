@@ -108,14 +108,24 @@ int32_t VideoTrack::GetKeyFrameInterval() const
 	return _key_frame_interval;
 }
 
-void VideoTrack::SetKeyFrameIntervalByMeasured(int32_t key_frame_interval)
+void VideoTrack::SetKeyFrameIntervalByMeasured(double key_frame_interval)
 {
 	_key_frame_interval = key_frame_interval;
 }
 
-int32_t VideoTrack::GetKeyFrameIntervalByMeasured() const
+double VideoTrack::GetKeyFrameIntervalByMeasured() const
 {
 	return _key_frame_interval;
+}
+
+void VideoTrack::SetKeyFrameIntervalLastet(int32_t key_frame_interval)
+{
+	_key_frame_interval_latest = key_frame_interval;
+}
+
+int32_t VideoTrack::GetKeyFrameIntervalLatest() const
+{
+	return _key_frame_interval_latest;
 }
 
 void VideoTrack::SetKeyFrameIntervalByConfig(int32_t key_frame_interval)
@@ -192,6 +202,16 @@ double VideoTrack::GetFrameRateByMeasured() const
 	return _framerate;
 }
 
+void VideoTrack::SetFrameRateLastSecond(double framerate)
+{
+	_framerate_last_second = framerate;
+}
+
+double VideoTrack::GetFrameRateLastSecond() const
+{
+	return _framerate_last_second;
+}
+
 void VideoTrack::SetFrameRateByConfig(double framerate)
 {
 	_framerate_conf = framerate;
@@ -200,6 +220,16 @@ void VideoTrack::SetFrameRateByConfig(double framerate)
 double VideoTrack::GetFrameRateByConfig() const
 {
 	return _framerate_conf;
+}
+
+void VideoTrack::SetDeltaFrameCountSinceLastKeyFrame(int32_t delta_frame_count)
+{
+	_delta_frame_count_since_last_key_frame = delta_frame_count;
+}
+
+int32_t VideoTrack::GetDeltaFramesSinceLastKeyFrame() const
+{
+	return _delta_frame_count_since_last_key_frame;
 }
 
 void VideoTrack::SetWidthByConfig(int32_t width)
