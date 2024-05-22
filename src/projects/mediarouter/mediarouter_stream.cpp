@@ -970,7 +970,7 @@ void MediaRouteStream::UpdateStatistics(std::shared_ptr<MediaTrack> &media_track
 			}
 
 			min_pts = std::min(min_pts, rescaled_last_pts);
-			max_pts = std::max(max_pts, rescaled_last_pts);										
+			max_pts = std::max(max_pts, rescaled_last_pts);
 		}
 
 		ov::String stat_stream_str = "";

@@ -600,7 +600,7 @@ namespace pvd
 		catch (const std::bad_any_cast &e)
 		{
 			// Internal Error
-			logtc("WebRTCProvider::OnDataReceived - Could not convert user_data, internal error");
+			logtc("WebRTCProvider::OnStateChanged - Could not convert user_data, internal error");
 			return;
 		}
 
