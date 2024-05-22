@@ -469,6 +469,15 @@ std::shared_ptr<WhipInterceptor> WhipServer::CreateInterceptor()
 			// Set CORS header in response
 			_cors_manager.SetupHttpCorsHeader(vhost_app_name, request, response);
 		}
+		else
+		{
+			// Set Error
+			if (answer._error_message.IsEmpty() == false)
+			{
+				response->SetHeader("Content-Type", "text/plain");
+				response->AppendString(answer._error_message);
+			}
+		}
 
 		return http::svr::NextHandler::DoNotCall;
 	});
