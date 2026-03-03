@@ -142,10 +142,10 @@ static void AbortHandler(int signum, siginfo_t *si, void *context)
 {
 	char time_buffer[30]{};
 	ov::String file_name(PATH_MAX);
-	time_t t = ::time(nullptr);
+	time_t t			   = ::time(nullptr);
 
-	const auto pid = ov::Platform::GetProcessId();
-	const auto tid = ov::Platform::GetThreadId();
+	const auto pid		   = ov::Platform::GetProcessId();
+	const auto tid		   = ov::Platform::GetThreadId();
 	const auto thread_name = ov::Platform::GetThreadName();
 
 	utsname uts{};
@@ -173,7 +173,7 @@ static void AbortHandler(int signum, siginfo_t *si, void *context)
 
 	{
 		const char *file_prefix = "dumps/";
-		bool fallback = false;
+		bool fallback			= false;
 
 		::strftime(time_buffer, OV_COUNTOF(time_buffer), "crash_%Y%m%d.dump", &local_time);
 
@@ -214,7 +214,7 @@ static void AbortHandler(int signum, siginfo_t *si, void *context)
 		{
 			file_prefix = g_dump_fallback_directory;
 
-			file_name = file_prefix;
+			file_name	= file_prefix;
 			file_name.Append(time_buffer);
 
 			ostream = std::ofstream(file_name, std::ofstream::app);
@@ -262,20 +262,20 @@ static void AbortHandler(int signum, siginfo_t *si, void *context)
 static bool InitializeForAbortSignals()
 {
 	bool result = true;
-	auto sa = ::GetSigAction(::AbortHandler);
+	auto sa		= ::GetSigAction(::AbortHandler);
 
 	// Core dumped signal
-	result = result && (::sigaction(SIGABRT, &sa, nullptr) == 0);  // assert()
-	result = result && (::sigaction(SIGSEGV, &sa, nullptr) == 0);  // illegal memory access
-	result = result && (::sigaction(SIGBUS, &sa, nullptr) == 0);   // illegal memory access
-	result = result && (::sigaction(SIGILL, &sa, nullptr) == 0);   // execute a malformed instruction.
-	result = result && (::sigaction(SIGFPE, &sa, nullptr) == 0);   // divide by zero
-	result = result && (::sigaction(SIGSYS, &sa, nullptr) == 0);   // bad system call
-	result = result && (::sigaction(SIGXCPU, &sa, nullptr) == 0);  // cpu time limit exceeded
-	result = result && (::sigaction(SIGXFSZ, &sa, nullptr) == 0);  // file size limit exceeded
+	result		= result && (::sigaction(SIGABRT, &sa, nullptr) == 0);	// assert()
+	result		= result && (::sigaction(SIGSEGV, &sa, nullptr) == 0);	// illegal memory access
+	result		= result && (::sigaction(SIGBUS, &sa, nullptr) == 0);	// illegal memory access
+	result		= result && (::sigaction(SIGILL, &sa, nullptr) == 0);	// execute a malformed instruction.
+	result		= result && (::sigaction(SIGFPE, &sa, nullptr) == 0);	// divide by zero
+	result		= result && (::sigaction(SIGSYS, &sa, nullptr) == 0);	// bad system call
+	result		= result && (::sigaction(SIGXCPU, &sa, nullptr) == 0);	// cpu time limit exceeded
+	result		= result && (::sigaction(SIGXFSZ, &sa, nullptr) == 0);	// file size limit exceeded
 
 	// Terminated signal
-	result = result && (::sigaction(SIGPIPE, &sa, nullptr) == 0);  // write on a pipe with no one to read it
+	result		= result && (::sigaction(SIGPIPE, &sa, nullptr) == 0);	// write on a pipe with no one to read it
 #if IS_LINUX
 	result = result && (::sigaction(SIGPOLL, &sa, nullptr) == 0);  // pollable event
 #endif															   // IS_LINUX
@@ -397,7 +397,7 @@ static bool InitializeForSigTerm()
 static void SigIntHandler(int signum, siginfo_t *si, void *unused)
 {
 	static constexpr int TERMINATE_COUNT = 3;
-	static int signal_count = 0;
+	static int signal_count				 = 0;
 
 	signal_count++;
 
