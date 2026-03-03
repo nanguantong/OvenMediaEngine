@@ -23,7 +23,8 @@
 #include "./third_parties.h"
 #include "main.h"
 
-bool g_is_terminated;
+// 1 == true, 0 == false
+volatile sig_atomic_t g_is_terminated;
 
 #define SIGNAL_CASE(x) \
 	case x:            \
@@ -383,7 +384,7 @@ static bool InitializeForSigHup()
 static void SigTermHandler(int signum, siginfo_t *si, void *unused)
 {
 	logtw("Caught terminate signal %d. OME is terminating...", signum);
-	g_is_terminated = true;
+	g_is_terminated = 1;
 }
 
 static bool InitializeForSigTerm()
@@ -410,7 +411,7 @@ static void SigIntHandler(int signum, siginfo_t *si, void *unused)
 		logtc("Caught terminate signal %d. Trying to terminating... (Repeat %d more times to forcibly terminate)", signum, (TERMINATE_COUNT - signal_count));
 	}
 
-	g_is_terminated = true;
+	g_is_terminated = 1;
 }
 
 static bool InitializeForSigInt()
@@ -435,7 +436,7 @@ bool InitializeSignals()
 	//	58) SIGRTMAX-6	59) SIGRTMAX-5	60) SIGRTMAX-4	61) SIGRTMAX-3	62) SIGRTMAX-2
 	//	63) SIGRTMAX-1	64) SIGRTMAX
 
-	g_is_terminated = false;
+	g_is_terminated = 0;
 
 	::memset(g_ome_version, 0, sizeof(g_ome_version));
 	::strncpy(g_ome_version, info::OmeVersion::GetInstance()->ToString().CStr(), OV_COUNTOF(g_ome_version) - 1);

@@ -32,7 +32,7 @@
 #include "third_parties.h"
 #include "utilities.h"
 
-extern bool g_is_terminated;
+extern volatile sig_atomic_t g_is_terminated;
 
 static ov::Daemon::State Initialize(int argc, char *argv[], ParseOption *parse_option);
 static void CheckKernelVersion();
@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
 					ov::Daemon::SetEvent();
 				}
 
-				while (g_is_terminated == false)
+				while (g_is_terminated == 0)
 				{
 					sleep(1);
 				}
