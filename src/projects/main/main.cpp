@@ -316,9 +316,6 @@ static ov::Daemon::State Initialize(int argc, char *argv[], ParseOption *parse_o
 	try
 	{
 		config_manager->LoadConfigs(parse_option->config_path);
-
-		ov::sig::SetDumpFallbackPath(::ov_log_get_path());
-
 		return ov::Daemon::State::CHILD_SUCCESS;
 	}
 	catch (const cfg::ConfigError &error)
