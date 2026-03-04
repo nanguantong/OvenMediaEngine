@@ -17,29 +17,22 @@ To enable subtitles, add a `subtitles` section under  `<Application><OutputProfi
     <Name>app</Name>
     <Type>live</Type>
 
+    <Subtitles>
+        <Enable>true</Enable>
+        <DefaultLabel>Korean</DefaultLabel>
+        <Rendition>
+            <Language>ko</Language>
+            <Label>Korean</Label>
+            <AutoSelect>true</AutoSelect>
+            <Forced>false</Forced>
+        </Rendition>
+        <Rendition>
+            <Language>en</Language>
+            <Label>English</Label>
+        </Rendition>
+    </Subtitles>
     <OutputProfiles>
-        <MediaOptions>
-            <Subtitles>
-                <Enable>true</Enable>
-                <DefaultLabel>Korean</DefaultLabel>
-                <Rendition>
-                    <Language>ko</Language>
-                    <Label>Korean</Label>
-                    <AutoSelect>true</AutoSelect>
-                    <Forced>false</Forced>
-                </Rendition>
-                <Rendition>
-                    <Language>en</Language>
-                    <Label>English</Label>
-                </Rendition>
-            </Subtitles>
-        </MediaOptions>
-
-        <OutputProfile>
-            <Name>stream</Name>
-            <OutputStreamName>${OriginStreamName}</OutputStreamName>
-            ... omitted ...
-        </OutputProfile>
+        ...
     </OutputProfiles>
 </Application>
 ```
@@ -49,6 +42,10 @@ To enable subtitles, add a `subtitles` section under  `<Application><OutputProfi
 * **Label**: used to select the track when calling the API.
 * **AutoSelect**: if `true`, the player may select this track automatically based on the user’s language.
 * **Forced**: if `true`, the track is always shown even if subtitles are disabled (behavior depends on the player).
+
+{% hint style="warning" %}
+The `<Subtitles>` configuration has been moved from `<Application><OutputProfiles><MediaOptions><Subtitles>` to `<Application><Subtitles>`. Please update your existing configuration accordingly.
+{% endhint %}
 
 ## Insert Subtitle Cues
 
