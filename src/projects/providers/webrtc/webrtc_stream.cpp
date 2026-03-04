@@ -360,6 +360,10 @@ namespace pvd
 		logtt("%s - Set Oven-Capabilities: %s", GetName().CStr(), capabilities.CStr());
 
 		auto params = ov::String::Split(capabilities.CStr(), ",");
+
+		std::optional<int> max_width;
+		std::optional<int> max_height;
+
 		for (const auto &param : params)
 		{
 			auto key_value = ov::String::Split(param.CStr(), "=");
@@ -372,21 +376,23 @@ namespace pvd
 			auto value = key_value[1].Trim();
 			if (key == "max_width")
 			{
-				auto first_video_track = GetFirstTrackByType(cmn::MediaType::Video);
-				if (first_video_track != nullptr)
-				{
-					first_video_track->SetWidth(static_cast<uint32_t>(std::atoi(value.CStr())));
-					logtt("%s - Set max width: %u", GetName().CStr(), first_video_track->GetMaxWidth());
-				}
+				max_width = std::atoi(value.CStr());
 			}
 			else if (key == "max_height")
 			{
-				auto first_video_track = GetFirstTrackByType(cmn::MediaType::Video);
-				if (first_video_track != nullptr)
-				{
-					first_video_track->SetHeight(static_cast<uint32_t>(std::atoi(value.CStr())));
-					logtt("%s - Set max height: %u", GetName().CStr(), first_video_track->GetMaxHeight());
-				}
+				max_height = std::atoi(value.CStr());
+			}
+		}
+
+		if (max_width.has_value() && max_height.has_value())
+		{
+			auto first_video_track = GetFirstTrackByType(cmn::MediaType::Video);
+			if (first_video_track != nullptr)
+			{
+				first_video_track->SetResolution(max_width.value(), max_height.value());
+
+				auto max_resolution = first_video_track->GetMaxResolution();
+				logtt("%s - Set max resolution: %s", GetName().CStr(), max_resolution.ToString().CStr());
 			}
 		}
 	}
@@ -550,22 +556,9 @@ namespace pvd
 		std::vector<std::shared_ptr<ov::Data>> payload_list;
 		for (const auto &packet : rtp_packets)
 		{
-			// Drop Padding-only RTP packet
-			if (packet->HasPadding() == true && packet->PayloadSize() == 0)
-			{
-				logtp("Drop padding-only RTP packet - track(%u) | %s", track_id, packet->Dump().CStr());
-				continue;
-			}
-
 			logtp("%s", packet->Dump().CStr());
 			auto payload = std::make_shared<ov::Data>(packet->Payload(), packet->PayloadSize());
 			payload_list.push_back(payload);
-		}
-
-		if(payload_list.size() == 0)
-		{
-			logtp("No payload to depacketize - track(%u)", track_id);
-			return;
 		}
 
 		auto bitstream = depacketizer->ParseAndAssembleFrame(payload_list);
