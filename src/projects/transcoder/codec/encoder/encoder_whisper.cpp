@@ -99,18 +99,30 @@ bool EncoderWhisper::InitCodec()
 	cparams.use_gpu = true;
 	cparams.flash_attn = true;
 
-	// libcublas (used internally by whisper's GPU backend) performs lazy
-	// initialization of a global pthread_rwlock_t without proper thread safety.
-	// If two EncoderWhisper instances initialize concurrently, one thread calls
-	// pthread_rwlock_init while another simultaneously calls pthread_rwlock_rdlock
-	// on the same uninitialized global — a data race inside libcublas itself.
-	// Serializing whisper_init_from_file_with_params with a static mutex ensures
-	// libcublas finishes its one-time global initialization before the next
-	// instance enters, eliminating the race without affecting steady-state perf.
+	// libcublas lazy-initializes its global state (heap buffers, pthread_rwlock_t)
+	// in two phases without thread safety.  Serialise both phases under a static
+	// mutex so concurrent EncoderWhisper instances never race inside libcublas.
+	// Phase 1: whisper_init_from_file_with_params() → cublasCreate().
+	// Phase 2: first GEMM call → pthread_rwlock_init. whisper_pcm_to_mel() does
+	//          NOT reach the GEMM path, so a full whisper_full() warmup is needed.
 	{
 		static std::mutex _cublas_init_mutex;
 		std::lock_guard<std::mutex> lock(_cublas_init_mutex);
+
 		_whisper_ctx = whisper_init_from_file_with_params(_track->GetModel().CStr(), cparams);
+		if (_whisper_ctx != nullptr)
+		{
+			std::vector<float> warmup(WHISPER_SAMPLE_RATE, 0.0f);  // 1 s of silence
+			whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+			wparams.print_progress   = false;
+			wparams.print_special    = false;
+			wparams.print_realtime   = false;
+			wparams.print_timestamps = false;
+			wparams.n_threads        = 1;
+			wparams.language         = "en";
+			wparams.no_context       = true;
+			whisper_full(_whisper_ctx, wparams, warmup.data(), static_cast<int>(warmup.size()));
+		}
 	}
 
 	if (_whisper_ctx == nullptr)
