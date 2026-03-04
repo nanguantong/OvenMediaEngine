@@ -8,7 +8,7 @@
 //==============================================================================
 #pragma once
 
-#include "transcription/transcription.h"
+#include "transcription.h"
 
 namespace cfg
 {
@@ -16,7 +16,7 @@ namespace cfg
 	{
 		namespace app
 		{
-			namespace oprf
+			namespace subt
 			{
 				struct SubtitleRendition : public Item
 				{

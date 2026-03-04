@@ -641,7 +641,12 @@ size_t TranscoderStream::CreateOutputStreams()
 		logti("%s Output stream has been created. [%s/%s(%u)]", _log_prefix.CStr(), _application_info.GetVHostAppName().CStr(), output_stream->GetName().CStr(), output_stream->GetId());
 	}
 
-	auto cfg_media_option_subtitles = GetOutputProfilesCfg()->GetMediaOptions().GetSubtitle();
+	auto cfg_media_option_subtitles = _application_info.GetConfig().GetSubtitle();
+	if (cfg_media_option_subtitles.IsEnabled() == false)
+	{
+		// Subtitle option is moved to Application level, and OutputProfiles/MediaOptions/Subtitle will be deprecated. 
+		cfg_media_option_subtitles = GetOutputProfilesCfg()->GetMediaOptions().GetSubtitle();
+	}
 	
 	cfg::vhost::app::oprf::OutputProfile cfg_new_output_profile;
 	if (cfg_media_option_subtitles.IsEnabled())
