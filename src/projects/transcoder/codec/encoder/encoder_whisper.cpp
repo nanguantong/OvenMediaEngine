@@ -99,7 +99,20 @@ bool EncoderWhisper::InitCodec()
 	cparams.use_gpu = true;
 	cparams.flash_attn = true;
 
-	_whisper_ctx = whisper_init_from_file_with_params(_track->GetModel().CStr(), cparams);
+	// libcublas (used internally by whisper's GPU backend) performs lazy
+	// initialization of a global pthread_rwlock_t without proper thread safety.
+	// If two EncoderWhisper instances initialize concurrently, one thread calls
+	// pthread_rwlock_init while another simultaneously calls pthread_rwlock_rdlock
+	// on the same uninitialized global — a data race inside libcublas itself.
+	// Serializing whisper_init_from_file_with_params with a static mutex ensures
+	// libcublas finishes its one-time global initialization before the next
+	// instance enters, eliminating the race without affecting steady-state perf.
+	{
+		static std::mutex _cublas_init_mutex;
+		std::lock_guard<std::mutex> lock(_cublas_init_mutex);
+		_whisper_ctx = whisper_init_from_file_with_params(_track->GetModel().CStr(), cparams);
+	}
+
 	if (_whisper_ctx == nullptr)
 	{
 		logte("Whisper model could not be loaded. model=%s", _track->GetModel().CStr());
