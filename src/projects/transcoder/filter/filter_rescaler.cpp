@@ -71,7 +71,7 @@ bool FilterRescaler::InitializeSourceFilter()
 	int ret = ::avfilter_graph_create_filter(&_buffersrc_ctx, _buffersrc, "in", _src_args, nullptr, _filter_graph);
 	if (ret < 0)
 	{
-		logte("Could not create video buffer source filter for rescaling: %d", ret);
+		logte("[%s] Could not create video buffer source filter for rescaling: %s", GetLogPrefix().CStr(), ffmpeg::compat::AVErrorToString(ret).CStr());
 		return false;
 	}
 
@@ -88,7 +88,7 @@ bool FilterRescaler::InitializeSinkFilter()
 	int ret = ::avfilter_graph_create_filter(&_buffersink_ctx, _buffersink, "out", nullptr, nullptr, _filter_graph);
 	if (ret < 0)
 	{
-		logte("Could not create video buffer sink filter for rescaling: %d", ret);
+		logte("[%s] Could not create video buffer sink filter for rescaling: %s", GetLogPrefix().CStr(), ffmpeg::compat::AVErrorToString(ret).CStr());
 		return false;
 	}
 
@@ -142,7 +142,7 @@ bool FilterRescaler::InitializeFilterDescription()
 					_src_pixfmt = ffmpeg::compat::GetAVPixelFormatOfHWDevice(input_module_id, input_device_id, true);
 					if (_src_pixfmt == AV_PIX_FMT_NONE)
 					{
-						logte("Failed to get pixel format for %s(%d)", cmn::GetCodecModuleIdString(input_module_id), input_device_id);
+						logte("[%s] Failed to get pixel format for %s(%d)", GetLogPrefix().CStr(), cmn::GetCodecModuleIdString(input_module_id), input_device_id);
 						return false;
 					}
 					_use_hwframe_transfer = true;
@@ -186,7 +186,7 @@ bool FilterRescaler::InitializeFilterDescription()
 						_src_pixfmt = ffmpeg::compat::GetAVPixelFormatOfHWDevice(input_module_id, input_device_id, true);
 						if (_src_pixfmt == AV_PIX_FMT_NONE)
 						{
-							logte("Failed to get pixel format for %s(%d)", cmn::GetCodecModuleIdString(input_module_id), input_device_id);
+							logte("[%s] Failed to get pixel format for %s(%d)", GetLogPrefix().CStr(), cmn::GetCodecModuleIdString(input_module_id), input_device_id);
 							return false;
 						}
 						_use_hwframe_transfer = true;
@@ -227,7 +227,7 @@ bool FilterRescaler::InitializeFilterDescription()
 			bool need_crop_for_multiple_of_4 = (input_resolution.width % 4 != 0 || input_resolution.height % 4 != 0);
 			if (need_crop_for_multiple_of_4)
 			{
-				logtw("multiscale_xma only supports resolutions multiple of 4. The resolution will be cropped to a multiple of 4.");
+				logtw("[%s] multiscale_xma only supports resolutions multiple of 4. The resolution will be cropped to a multiple of 4.", GetLogPrefix().CStr());
 			}
 
 			int32_t desire_width = input_resolution.width - input_resolution.width % 4;
@@ -259,7 +259,7 @@ bool FilterRescaler::InitializeFilterDescription()
 					_src_pixfmt = ffmpeg::compat::GetAVPixelFormatOfHWDevice(input_module_id, input_device_id, true);
 					if (_src_pixfmt == AV_PIX_FMT_NONE)
 					{
-						logte("Failed to get pixel format for %s(%d)", cmn::GetCodecModuleIdString(input_module_id), input_device_id);
+						logte("[%s] Failed to get pixel format for %s(%d)", GetLogPrefix().CStr(), cmn::GetCodecModuleIdString(input_module_id), input_device_id);
 						return false;
 					}
 					_use_hwframe_transfer = true;
@@ -272,7 +272,7 @@ bool FilterRescaler::InitializeFilterDescription()
 				}
 				break;
 				default:
-					logtw("Unsupported input module: %s", cmn::GetCodecModuleIdString(input_module_id));
+					logtw("[%s] Unsupported input module: %s", GetLogPrefix().CStr(), cmn::GetCodecModuleIdString(input_module_id));
 				case cmn::MediaCodecModuleId::X264:		// CPU memory
 				case cmn::MediaCodecModuleId::QSV:		// CPU memory using 'gpu_copy=on'
 				case cmn::MediaCodecModuleId::NILOGAN:	// CPU memory using 'out=sw'
@@ -298,7 +298,7 @@ bool FilterRescaler::InitializeFilterDescription()
 		 */		
 		else
 		{
-			logtw("Unsupported output module id: %d", static_cast<int>(output_module_id));
+			logtw("[%s] Unsupported output module id: %d", GetLogPrefix().CStr(), static_cast<int>(output_module_id));
 			return false;
 		}
 
@@ -409,7 +409,7 @@ bool FilterRescaler::Configure()
 
 	if ((::avfilter_graph_parse_ptr(_filter_graph, _filter_desc, &_inputs, &_outputs, nullptr)) < 0)
 	{
-		logte("Could not parse filter string for rescaling: %s", _filter_desc.CStr());
+		logte("[%s] Could not parse filter string for rescaling: %s", GetLogPrefix().CStr(), _filter_desc.CStr());
 		SetState(State::ERROR);
 		
 		return false;
@@ -417,7 +417,7 @@ bool FilterRescaler::Configure()
 
 	if (SetHWContextToFilterIfNeed() == false)
 	{
-		logte("Could not set hw context to filters");
+		logte("[%s] Could not set hw context to filters", GetLogPrefix().CStr());
 		SetState(State::ERROR);
 
 		return false;
@@ -425,7 +425,7 @@ bool FilterRescaler::Configure()
 
 	if (::avfilter_graph_config(_filter_graph, nullptr) < 0)
 	{
-		logte("Could not validate filter graph for rescaling");
+		logte("[%s] Could not validate filter graph for rescaling", GetLogPrefix().CStr());
 		SetState(State::ERROR);
 
 		return false;
@@ -458,7 +458,7 @@ bool FilterRescaler::Start()
 		_kill_flag = true;
 		SetState(State::ERROR);
 
-		logte("Failed to start rescaling filter thread");
+		logte("[%s] Failed to start rescaling filter thread", GetLogPrefix().CStr());
 
 		return false;
 	}
@@ -521,7 +521,7 @@ bool FilterRescaler::PushProcess(std::shared_ptr<MediaFrame> media_frame)
 	auto src_frame = ffmpeg::compat::ToAVFrame(cmn::MediaType::Video, media_frame);
 	if (!src_frame)
 	{
-		logte("Could not get the video frame data");
+		logte("[%s] Could not allocate the video frame data", GetLogPrefix().CStr());
 
 		SetState(State::ERROR);
 
@@ -544,7 +544,7 @@ bool FilterRescaler::PushProcess(std::shared_ptr<MediaFrame> media_frame)
 		
 		if (::av_hwframe_transfer_data(transfer_frame, src_frame, 0) < 0)
 		{
-			logte("Error transferring the data to system memory\n");
+			logte("[%s] Error transferring the data to system memory", GetLogPrefix().CStr());
 
 			SetState(State::ERROR);
 
@@ -560,19 +560,19 @@ bool FilterRescaler::PushProcess(std::shared_ptr<MediaFrame> media_frame)
 	int ret = ::av_buffersrc_write_frame(_buffersrc_ctx, feed_frame);
 	if (ret == AVERROR_EOF)
 	{
-		logtw("filter graph has been flushed and will not accept any more frames.");
+		logtw("[%s] filter graph has been flushed and will not accept any more frames.", GetLogPrefix().CStr());
 	}
 	else if (ret == AVERROR(EAGAIN))
 	{
-		logtw("filter graph is not able to accept the frame at this time.");
+		logtw("[%s] filter graph is not able to accept the frame at this time.", GetLogPrefix().CStr());
 	}
 	else if (ret == AVERROR_INVALIDDATA)
 	{
-		logtw("Invalid data while sending to filtergraph");
+		logtw("[%s] Invalid data while sending to filtergraph", GetLogPrefix().CStr());
 	}
 	else if (ret == AVERROR(ENOMEM))
 	{
-		logte("Could not allocate memory while sending to filtergraph");
+		logte("[%s] Could not allocate memory while sending to filtergraph", GetLogPrefix().CStr());
 		
 		SetState(State::ERROR);
 
@@ -582,7 +582,7 @@ bool FilterRescaler::PushProcess(std::shared_ptr<MediaFrame> media_frame)
 	}
 	else if (ret < 0)
 	{
-		logte("An error occurred while feeding to filtergraph: format: %d, pts: %" PRId64 ", queue.size: %zu", src_frame->format, src_frame->pts, _input_buffer.Size());
+		logte("[%s] An error occurred while feeding to filtergraph: format: %d, pts: %" PRId64 ", queue.size: %zu", GetLogPrefix().CStr(), src_frame->format, src_frame->pts, _input_buffer.Size());
 
 		SetState(State::ERROR);
 
@@ -617,7 +617,7 @@ bool FilterRescaler::PopProcess(bool is_flush)
 		}
 		else if (ret == AVERROR_INVALIDDATA)
 		{
-			logtw("Invalid data while receiving from filtergraph");
+			logtw("[%s] Invalid data while receiving from filtergraph", GetLogPrefix().CStr());
 			break;
 		}
 		else if (ret == AVERROR_EOF)
@@ -625,7 +625,7 @@ bool FilterRescaler::PopProcess(bool is_flush)
 			if (is_flush)
 				break;
 
-			logte("Error receiving filtered frame. error(EOF)");
+			logte("[%s] Error receiving filtered frame. error(EOF)", GetLogPrefix().CStr());
 
 			SetState(State::ERROR);
 
@@ -633,7 +633,7 @@ bool FilterRescaler::PopProcess(bool is_flush)
 		}
 		else if (ret == AVERROR(ENOMEM))
 		{
-			logte("Could not allocate memory while receiving from filtergraph");
+			logte("[%s] Could not allocate memory while receiving from filtergraph", GetLogPrefix().CStr());
 
 			SetState(State::ERROR);
 
@@ -646,7 +646,7 @@ bool FilterRescaler::PopProcess(bool is_flush)
 			if (is_flush)
 				break;
 
-			logte("Error receiving frame from filtergraph. error(%s)", ffmpeg::compat::AVErrorToString(ret).CStr());
+			logte("[%s] Error receiving frame from filtergraph. error(%s)", GetLogPrefix().CStr(), ffmpeg::compat::AVErrorToString(ret).CStr());
 			
 			SetState(State::ERROR);
 
@@ -732,7 +732,8 @@ void FilterRescaler::WorkerThread()
 			{
 				skip_frames_last_check_time = curr_time;
 
-				logtt("SkipFrames(%d), Current FPS(%.2f), Expected FPS(%.2f), Threshold FPS(%.2f), Queue(%zu/%zu)",
+				logtd("[%s] SkipFrames(%d), Current FPS(%.2f), Expected FPS(%.2f), Threshold FPS(%.2f), Queue(%zu/%zu)",
+					  GetLogPrefix().CStr(),
 					  skip_frames,
 					  _fps_filter.GetOutputFramesPerSecond(),
 					  _fps_filter.GetExpectedOutputFramesPerSecond(),
@@ -753,7 +754,7 @@ void FilterRescaler::WorkerThread()
 						skip_frames = max_skip_frames;
 					}
 
-					logtw("Scaler is unstable. changing skip frames %d to %d", skip_frames - 1, skip_frames);
+					logtw("[%s] Scaler is unstable. changing skip frames %d to %d", GetLogPrefix().CStr(), skip_frames - 1, skip_frames);
 				}
 				// If the queue is stable, slowly decrease the number of skip frames.
 				else if ((skip_frames > 0) && (elapsed_stable_time > _SKIP_FRAMES_STABLE_FOR_RETRIEVE_INTERVAL))
@@ -768,7 +769,7 @@ void FilterRescaler::WorkerThread()
 							skip_frames = 0;
 						}
 
-						logti("Scaler is stable. changing skip frames %d to %d", skip_frames + 1, skip_frames);
+						logti("[%s] Scaler is stable. changing skip frames %d to %d", GetLogPrefix().CStr(), skip_frames + 1, skip_frames);
 					}
 				}
 
@@ -782,7 +783,7 @@ void FilterRescaler::WorkerThread()
 			{
 				_fps_filter.SetSkipFrames(skip_frames_conf);
 
-				logti("Changed skip frames to user config value: %d", _fps_filter.GetSkipFrames());
+				logti("[%s] Changed skip frames to user config value: %d", GetLogPrefix().CStr(), _fps_filter.GetSkipFrames());
 			}
 		}
 		else  // if (skip_frames_conf < 0)
@@ -798,7 +799,7 @@ void FilterRescaler::WorkerThread()
 			auto recommended_output_framerate = TranscoderStreamInternal::MeasurementToRecommendFramerate(_input_track->GetFrameRate());
 			if (_fps_filter.GetOutputFrameRate() != recommended_output_framerate)
 			{
-				logtt("Change output framerate. Input: %.2ffps, Output: %.2f -> %.2ffps", _input_track->GetFrameRate(), _fps_filter.GetOutputFrameRate(), recommended_output_framerate);
+				logtd("[%s] Change output framerate. Input: %.2ffps, Output: %.2f -> %.2ffps", GetLogPrefix().CStr(), _input_track->GetFrameRate(), _fps_filter.GetOutputFrameRate(), recommended_output_framerate);
 				_fps_filter.SetOutputFrameRate(recommended_output_framerate);
 			}
 		}
@@ -909,7 +910,7 @@ bool FilterRescaler::SetHWContextToFilterIfNeed()
 			{
 				if (ffmpeg::compat::SetHwDeviceCtxOfAVFilterContext(filter, hw_device_ctx) == false)
 				{
-					logte("Could not set hw device context for %s", filter->name);
+					logte("[%s] Could not set hw device context for %s", GetLogPrefix().CStr(), filter->name);
 					return false;
 				}
 			}
@@ -927,7 +928,7 @@ bool FilterRescaler::SetHWContextToFilterIfNeed()
 					auto resolution = _output_track->GetResolution();
 					if (ffmpeg::compat::SetHWFramesCtxOfAVFilterLink(input, hw_device_ctx, resolution.width, resolution.height) == false)
 					{
-						logte("Could not set hw frames context for %s", filter->name);
+						logte("[%s] Could not set hw frames context for %s", GetLogPrefix().CStr(), filter->name);
 						return false;
 					}
 				}

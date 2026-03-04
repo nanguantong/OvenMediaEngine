@@ -98,7 +98,9 @@ bool TranscodeFilter::CreateInternal()
 	_internal->SetQueueUrn(urn);
 	_internal->SetQueuePolicy(ENABLE_QUEUE_EXCEED_WAIT, MAX_QUEUE_SIZE);
 	_internal->SetCompleteHandler(bind(&TranscodeFilter::OnComplete, this, std::placeholders::_1, std::placeholders::_2));
+	_internal->SetInputStreamInfo(GetInputStreamInfo());
 	_internal->SetInputTrack(GetInputTrack());
+	_internal->SetOutputStreamInfo(GetOutputStreamInfo());
 	_internal->SetOutputTrack(GetOutputTrack());
 
 	// Fault Injection for testing
