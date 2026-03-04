@@ -71,40 +71,42 @@ Enable subtitles by using `<MediaOptions><Subtitles>`. For more details, refer t
 Example configuration:
 
 ```xml
-<OutputProfiles>
-    <MediaOptions>
-        <Subtitles>
-            <Enable>true</Enable>
-            <DefaultLabel>Origin</DefaultLabel>
-            <Rendition>
-                <Language>auto</Language>
-                <Label>Origin</Label>
-                <AutoSelect>true</AutoSelect>
-                <Forced>false</Forced>
-                <Transcription>
-                    <Engine>whisper</Engine>
-                    <Model>whisper_model/ggml-small.bin</Model>
-                    <AudioIndexHint>0</AudioIndexHint>
-                    <SourceLanguage>auto</SourceLanguage>
-                    <Translation>false</Translation>
-                </Transcription>
-            </Rendition>
-            <Rendition>
-                <Language>en</Language>
-                <Label>English</Label>
-                <AutoSelect>true</AutoSelect>
-                <Forced>false</Forced>
-                <Transcription>
-                    <Engine>whisper</Engine>
-                    <Model>whisper_model/ggml-small.bin</Model>
-                    <AudioIndexHint>0</AudioIndexHint>
-                    <SourceLanguage>auto</SourceLanguage>
-                    <Translation>true</Translation>
-                </Transcription>
-            </Rendition>
-        </Subtitles>
-    </MediaOptions>
+<Application>
+    <Subtitles>
+        <Enable>true</Enable>
+        <DefaultLabel>Origin</DefaultLabel>
+        <Rendition>
+            <Language>auto</Language>
+            <Label>Origin</Label>
+            <AutoSelect>true</AutoSelect>
+            <Forced>false</Forced>
+            <Transcription>
+                <Engine>whisper</Engine>
+                <Model>whisper_model/ggml-small.bin</Model>
+                <AudioIndexHint>0</AudioIndexHint>
+                <SourceLanguage>auto</SourceLanguage>
+                <Translation>false</Translation>
+            </Transcription>
+        </Rendition>
+        <Rendition>
+            <Language>en</Language>
+            <Label>English</Label>
+            <AutoSelect>true</AutoSelect>
+            <Forced>false</Forced>
+            <Transcription>
+                <Engine>whisper</Engine>
+                <Model>whisper_model/ggml-small.bin</Model>
+                <AudioIndexHint>0</AudioIndexHint>
+                <SourceLanguage>auto</SourceLanguage>
+                <Translation>true</Translation>
+            </Transcription>
+        </Rendition>
+    </Subtitles>
 ```
+
+{% hint style="warning" %}
+The `<Subtitles>` configuration has been moved from `<Application><OutputProfiles><MediaOptions><Subtitles>` to `<Application><Subtitles>`. Please update your existing configuration accordingly.
+{% endhint %}
 
 The Transcription configuration includes the following options:
 
