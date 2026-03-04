@@ -8,5 +8,8 @@
 //==============================================================================
 #pragma once
 
-bool InitializeSignals();
-void SetDumpFallbackPath(const char *path);
+namespace ov::sig
+{
+	bool Initialize();
+	void SetDumpFallbackPath(const char *path);
+}  // namespace ov::sig
