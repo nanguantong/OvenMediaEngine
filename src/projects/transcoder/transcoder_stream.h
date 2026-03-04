@@ -155,6 +155,7 @@ private:
 	std::shared_mutex _decoder_map_mutex;
 	std::shared_mutex _filter_map_mutex;
 	std::shared_mutex _encoder_map_mutex;
+	std::shared_mutex _last_decoded_frame_mutex;
 
 
 	const info::Application _application_info;

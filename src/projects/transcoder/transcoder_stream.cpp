@@ -1854,7 +1854,10 @@ void TranscoderStream::OnDecodedFrame(TranscodeResult result, MediaTrackId decod
 			last_frame->SetPts((int64_t)((double)decoded_frame->GetPts() * input_expr / filter_expr));
 
 			// Record the timestamp of the last decoded frame. managed by microseconds.
-			_last_decoded_frame_pts[decoder_id] = last_frame->GetPts() * filter_expr * 1000000.0;
+			{
+				std::unique_lock<std::shared_mutex> lock(_last_decoded_frame_mutex);
+				_last_decoded_frame_pts[decoder_id] = last_frame->GetPts() * filter_expr * 1000000.0;
+			}
 
 			// logtt("%s Create filler frame because there is no decoding frame. Type(%s), Decoder(%u), FillerFrames(%d)"
 			// 	, _log_prefix.CStr(), cmn::GetMediaTypeString(input_track->GetMediaType()), decoder_id, 1);
@@ -1890,11 +1893,20 @@ void TranscoderStream::OnDecodedFrame(TranscodeResult result, MediaTrackId decod
 				return;
 			}
 
-			if (_last_decoded_frame_pts.find(decoder_id) != _last_decoded_frame_pts.end())
-			{
-				auto last_decoded_frame_time_us = _last_decoded_frame_pts[decoder_id];
-				auto last_decoded_frame_duration_us = _last_decoded_frame_duration[decoder_id];
-
+				int64_t last_decoded_frame_time_us = 0;
+				int64_t last_decoded_frame_duration_us = 0;
+				bool _has_last_decoded_frame_pts = false;
+				{
+					std::shared_lock<std::shared_mutex> lock(_last_decoded_frame_mutex);
+					if (_last_decoded_frame_pts.find(decoder_id) != _last_decoded_frame_pts.end())
+					{
+						last_decoded_frame_time_us = _last_decoded_frame_pts[decoder_id];
+						last_decoded_frame_duration_us = _last_decoded_frame_duration[decoder_id];
+						_has_last_decoded_frame_pts = true;
+					}
+				}
+				if (_has_last_decoded_frame_pts)
+				{
 				// Decoded frame PTS to microseconds
 				int64_t curr_decoded_frame_time_us = (int64_t)((double)decoded_frame->GetPts() * input_track->GetTimeBase().GetExpr() * 1000000);
 
@@ -2001,14 +2013,19 @@ void TranscoderStream::SetLastDecodedFrame(MediaTrackId decoder_id, std::shared_
 	auto input_track = GetInputTrack(decoder_id);
 
 	auto scale_factor = input_track->GetTimeBase().GetExpr() * 1000000.0;
-	_last_decoded_frame_pts[decoder_id] = static_cast<int64_t>(decoded_frame->GetPts() * scale_factor);
-	_last_decoded_frame_duration[decoder_id] = static_cast<int64_t>(decoded_frame->GetDuration() * scale_factor);
+	auto pts = static_cast<int64_t>(decoded_frame->GetPts() * scale_factor);
+	auto duration = static_cast<int64_t>(decoded_frame->GetDuration() * scale_factor);
+	auto cloned = decoded_frame->CloneFrame();
 
-	_last_decoded_frames[decoder_id] = decoded_frame->CloneFrame();
+	std::unique_lock<std::shared_mutex> lock(_last_decoded_frame_mutex);
+	_last_decoded_frame_pts[decoder_id] = pts;
+	_last_decoded_frame_duration[decoder_id] = duration;
+	_last_decoded_frames[decoder_id] = std::move(cloned);
 }
 
 std::shared_ptr<MediaFrame> TranscoderStream::GetLastDecodedFrame(MediaTrackId decoder_id)
 {
+	std::shared_lock<std::shared_mutex> lock(_last_decoded_frame_mutex);
 	if (_last_decoded_frames.find(decoder_id) != _last_decoded_frames.end())
 	{
 		auto frame = _last_decoded_frames[decoder_id]->CloneFrame();
