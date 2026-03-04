@@ -101,6 +101,8 @@ namespace pvd
 
 	int64_t Stream::GetCurrentTimestampMs()
 	{
+		std::lock_guard<std::mutex> lock(_timestamp_mutex);
+
 		// Not yet started
 		if (_last_media_timestamp_ms == -1)
 		{
@@ -347,6 +349,7 @@ namespace pvd
 
 		if (master_clock_track != nullptr && packet->GetTrackId() == master_clock_track->GetId())
 		{
+			std::lock_guard<std::mutex> lock(_timestamp_mutex);
 			_last_media_timestamp_ms = packet->GetPts() / GetTrack(packet->GetTrackId())->GetTimeBase().GetTimescale() * 1000.0;
 			_elapsed_from_last_media_timestamp.Restart();
 		}

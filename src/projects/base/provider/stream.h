@@ -160,6 +160,7 @@ namespace pvd
 		LipSyncClock 						_rtp_lip_sync_clock;
 		ov::StopWatch						_first_rtp_received_time;
 
+		mutable std::mutex _timestamp_mutex;
 		int64_t _last_media_timestamp_ms = -1LL;
 		ov::StopWatch _elapsed_from_last_media_timestamp;
 		int64_t _max_generated_timestamp_ms = -1LL;
