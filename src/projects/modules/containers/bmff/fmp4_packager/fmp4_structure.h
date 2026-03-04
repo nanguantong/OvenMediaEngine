@@ -173,6 +173,7 @@ namespace bmff
 
 		int64_t GetLastPartialNumber() const
 		{
+			std::shared_lock<std::shared_mutex> lock(_partials_lock);
 			return _last_partial_number;
 		}
 
