@@ -257,7 +257,7 @@ void EncoderWhisper::CodecThread()
 
 
 		// Auto detect language if needed.
-		if (_source_language == "auto")
+		if (_source_language == "auto" && _translate == false)
 		{
 			if (whisper_pcm_to_mel(_whisper_ctx, pcmf32_buffer.data(), pcmf32_buffer.size(), 4) != 0)
 			{
@@ -287,6 +287,11 @@ void EncoderWhisper::CodecThread()
 			{
 				logtw("Detected language [label : %s] is not confident enough. Detected %s (id=%d) with probabilities:[%f]. Keep auto-detection. Please consider setting source_language manually.", _track->GetOutputTrackLabel().CStr(), lang_str, lang_id, lang_prob);
 			}
+		}
+		else if (_source_language == "auto" && _translate == true)
+		{
+			SendLangDetectionEvent(_track->GetOutputTrackLabel(), "en");
+			logti("Translation enabled. Set source language [label : %s] to English for Whisper processing.", _track->GetOutputTrackLabel().CStr());
 		}
 
 		whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
