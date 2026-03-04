@@ -41,10 +41,11 @@ namespace cfg
 					int _lookahead	 = -1;
 
 					// SkipFrames
-					// If the set value is greater than or equal to 0, the skip frame is automatically calculated.
-					// The skip frame is not less than the value set by the user.
-					// -1 : No SkipFrame
-					// 0 ~ 120 : minimum value of SkipFrames. it is automatically calculated and the SkipFrames value is changed.
+					// Controls frame skipping behavior.
+					//
+					// -1  : Disable SkipFrames (Default)
+					//  0  : SkipFrames value is automatically calculated and updated
+					//  1~120 : Use a fixed SkipFrames value
 					int _skip_frames = -1;
 
 					// User-defined encoder options passed directly to the underlying encoder without validation.
