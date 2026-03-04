@@ -982,7 +982,7 @@ ov::String HlsStream::MakeVttVariantName(const int32_t &track_id) const
 		return "";
 	}
 
-	return GetVariantName(track->GetPublicName(), track->GetId(), track->GetLanguage(), -1);
+	return GetVariantName(track->GetPublicName(), track->GetId(), "subtitle", -1);
 }
 
 std::shared_ptr<HlsMasterPlaylist> HlsStream::GetMasterPlaylist(const ov::String &playlist_name)
