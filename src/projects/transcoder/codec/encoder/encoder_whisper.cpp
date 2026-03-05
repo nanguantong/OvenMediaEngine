@@ -6,6 +6,11 @@
 //  Copyright (c) 2018 AirenSoft. All rights reserved.
 //
 //==============================================================================
+#include <sys/stat.h>
+
+#ifdef HWACCELS_NVIDIA_ENABLED
+#include <cuda_runtime.h>
+#endif
 #include <orchestrator/orchestrator.h>
 #include <base/modules/data_format/webvtt/webvtt_frame.h>
 #include <base/event/command/commands.h>
@@ -96,7 +101,6 @@ bool EncoderWhisper::InitCodec()
 	}
 
 	struct whisper_context_params cparams = whisper_context_default_params();
-	cparams.use_gpu = true;
 	cparams.flash_attn = true;
 
 	// libcublas lazy-initializes its global state (heap buffers, pthread_rwlock_t)
@@ -109,7 +113,53 @@ bool EncoderWhisper::InitCodec()
 		static std::mutex _cublas_init_mutex;
 		std::lock_guard<std::mutex> lock(_cublas_init_mutex);
 
+		// Determine whether there is enough free GPU memory BEFORE calling
+		// whisper_init_from_file_with_params().  If CUDA OOM is hit inside that
+		// function, ggml may crash (SIGSEGV) instead of returning an error code, so we must avoid it entirely.
+		// Pre-flight check: model file size * 1.25 (weights + compute graph overhead)
+		// must fit in available CUDA free memory.
+		bool use_gpu = false;
+		{
+			struct stat model_stat{};
+			size_t model_file_bytes = 0;
+			if (::stat(_track->GetModel().CStr(), &model_stat) == 0)
+			{
+				model_file_bytes = static_cast<size_t>(model_stat.st_size);
+			}
+
+			// ggml allocates weights + kv cache + compute buffers.
+			// Observed ratio for ggml-small: ~729 MB from a 466 MB file (1.57×).
+			// 2× the file size is a safe upper bound across all whisper model sizes.
+			size_t required_bytes = model_file_bytes * 2;
+
+#ifdef HWACCELS_NVIDIA_ENABLED
+			size_t free_mem = 0, total_mem = 0;
+			if (cudaMemGetInfo(&free_mem, &total_mem) == cudaSuccess)
+			{
+				if (free_mem >= required_bytes)
+				{
+					use_gpu = true;
+					logti("GPU init: free=%.1f MiB, required=%.1f MiB → using GPU",
+						static_cast<double>(free_mem) / (1024.0 * 1024.0),
+						static_cast<double>(required_bytes) / (1024.0 * 1024.0));
+				}
+				else
+				{
+					logtw("Not enough GPU memory for Whisper (free=%.1f MiB, required≈%.1f MiB). Falling back to CPU.",
+						static_cast<double>(free_mem) / (1024.0 * 1024.0),
+						static_cast<double>(required_bytes) / (1024.0 * 1024.0));
+				}
+			}
+			else
+			{
+				logtw("cudaMemGetInfo failed. Falling back to CPU for Whisper.");
+			}
+#endif
+		}
+
+		cparams.use_gpu = use_gpu;
 		_whisper_ctx = whisper_init_from_file_with_params(_track->GetModel().CStr(), cparams);
+
 		if (_whisper_ctx != nullptr)
 		{
 			std::vector<float> warmup(WHISPER_SAMPLE_RATE, 0.0f);  // 1 s of silence
