@@ -163,12 +163,12 @@ namespace cfg
 						Register<Optional>("Framerate", &_framerate);
 						Register<Optional>("SkipFrames", &_skip_frames, nullptr,
 										   [=]() -> std::shared_ptr<ConfigError> {
-											   if (_framerate > 0 && _skip_frames > 0)
+											   if (_framerate > 0 && _skip_frames >= 0)
 											   {
 												   logw("Config", "Use SkipFrames in the settings, the Framerate is ignored.");
 											   }
 
-											   return (_skip_frames >= 0 && _skip_frames <= 120) ? nullptr : CreateConfigErrorPtr("SkipFrames must be between 0 and 120");
+											   return (_skip_frames >= -1 && _skip_frames <= 120) ? nullptr : CreateConfigErrorPtr("SkipFrames must be -1 or between 0 and 120");
 										   });
 						Register<Optional>("Preset", &_preset, nullptr,
 										   [=]() -> std::shared_ptr<ConfigError> {
