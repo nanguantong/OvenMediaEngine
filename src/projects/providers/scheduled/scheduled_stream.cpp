@@ -1198,7 +1198,7 @@ namespace pvd
     std::shared_ptr<MediaRouterStreamTap> ScheduledStream::PrepareStreamPlayback(const std::shared_ptr<Schedule::Item> &item)
     {
         auto stream_tap = MediaRouterStreamTap::Create();
-		// 첫번째 재생인 경우에만 keyframe부터 나가야되니까 그때 적용할까?
+		// This is commented out because it is likely to cause problems every time a live item is switched. It seems that various tests will be needed.
 		// stream_tap->SetNeedPastData(true);
 
         auto stream_url = ov::Url::Parse(item->_url);
