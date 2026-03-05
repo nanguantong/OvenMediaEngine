@@ -39,7 +39,10 @@ bool OvtStream::Start()
 	}
 
 	// If this stream is from OriginMapStore, don't register it to OriginMapStore again.
-	if (IsFromOriginMapStore() == false)
+	// Also check the linked input stream (e.g., RTSP provider pulled via OriginMapStore)
+	// to stay consistent with the Stop() logic.
+	bool is_from_origin_map_store = IsFromOriginMapStore() || (GetLinkedInputStream() != nullptr && GetLinkedInputStream()->IsFromOriginMapStore());
+	if (is_from_origin_map_store == false)
 	{
 		auto result = ocst::Orchestrator::GetInstance()->RegisterStreamToOriginMapStore(GetApplicationInfo().GetVHostAppName(), GetName());
 		if (result == CommonErrorCode::ERROR)
