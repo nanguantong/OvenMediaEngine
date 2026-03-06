@@ -103,9 +103,11 @@ namespace ov::sig
 			}
 		}
 
-		template <typename... SigNums>
-		bool RegisterSignals(OV_SIG_ACTION action, int sig, SigNums... sigs)
+		template <typename... Tsignal>
+		bool RegisterSignals(OV_SIG_ACTION action, int sig, Tsignal... sigs)
 		{
+			static_assert((std::is_same_v<std::decay_t<Tsignal>, int> && ...), "All signal arguments must be int");
+
 			struct sigaction sa{};
 
 			sa.sa_flags = SA_SIGINFO;
@@ -117,14 +119,24 @@ namespace ov::sig
 			::sigemptyset(&sa.sa_mask);
 #endif
 
+			const bool mask_added = (::sigaddset(&sa.sa_mask, sig) == 0) &&
+									((::sigaddset(&sa.sa_mask, sigs) == 0) && ...);
+
+			if (mask_added == false)
+			{
+				return false;
+			}
+
 			sa.sa_sigaction = action;
 
 			return (::sigaction(sig, &sa, nullptr) == 0) &&
-				   ((::sigaction(static_cast<int>(sigs), &sa, nullptr) == 0) && ...);
+				   ((::sigaction(sigs, &sa, nullptr) == 0) && ...);
 		}
 
 		namespace handlers
 		{
+			volatile static sig_atomic_t g_is_abort_triggered = 0;
+
 			// Handler for abort signals
 			//
 			// Intentional signals (ignore)
@@ -132,6 +144,14 @@ namespace ov::sig
 			//     SIGSYS, SIGXCPU, SIGXFSZ, SIGPOLL
 			void Abort(int signum, siginfo_t *si, void *context)
 			{
+				// Allow only the first thread entering this handler to proceed.
+				// If another signal arrives concurrently, skip re-entry and return.
+				sig_atomic_t expected = 0;
+				if (::__atomic_compare_exchange_n(&g_is_abort_triggered, &expected, 1, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) == false)
+				{
+					return;
+				}
+
 				char time_buffer[30]{};
 				String file_name(PATH_MAX);
 				time_t t			   = ::time(nullptr);
@@ -248,7 +268,7 @@ namespace ov::sig
 					// need not call fstream::close() explicitly to close the file
 				}
 
-				::exit(signum);
+				::_exit(signum);
 			}
 
 			// WARNING: USE THIS SIGNAL FOR DEBUGGING PURPOSE ONLY
