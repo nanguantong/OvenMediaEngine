@@ -581,36 +581,21 @@ void MediaTrack::OnFrameAdded(const std::shared_ptr<MediaPacket> &media_packet)
 
 	size_t bytes = media_packet->GetDataLength();
 
-	_total_frame_count++;
-	_total_frame_bytes += bytes;
-
-	_last_frame_count++;
-	_last_frame_bytes += bytes;
-
-	_last_seconds_frame_count++;
-	_last_seconds_frame_bytes += bytes;
-
-	// Calculate the framerate and bitrate every second(base on packet timestamp).
+	// [Timestamp-based] Calculate framerate/bitrate from the previous window, then reset.
+	// The current frame is counted into the new window after accumulation below.
 	if (_last_received_timestamp == -1)
 	{
 		_last_received_timestamp = media_packet->GetDts();
+		_last_frame_count = 0;
+		_last_frame_bytes = 0;
 	}
 	else
 	{
 		auto duration = (media_packet->GetDts() - _last_received_timestamp) * _time_base.GetExpr();
 		if (duration >= 1.0)
 		{
-			// Exclude the current frame bytes to keep bitrate interval-based
-			// (equivalent to measuring [t0, t1) at the trigger frame t1).
-			auto bytes_for_bitrate = (_last_frame_bytes > bytes) ? (_last_frame_bytes - bytes) : 0;
-			auto bitrate = static_cast<int32_t>(bytes_for_bitrate / duration * 8);
-			SetBitrateByMeasured(bitrate);
-
-			// _last_frame_count includes the anchor frame at _last_received_timestamp,
-			// so subtract one frame to keep fps interval-based and avoid off-by-one.
-			auto frame_count_for_framerate = (_last_frame_count > 0) ? (_last_frame_count - 1) : 0;
-			auto framerate = static_cast<double>(frame_count_for_framerate) / duration;
-			SetFrameRateByMeasured(framerate);
+			SetBitrateByMeasured(static_cast<int32_t>(_last_frame_bytes / duration * 8));
+			SetFrameRateByMeasured(static_cast<double>(_last_frame_count) / duration);
 
 			_last_received_timestamp = media_packet->GetDts();
 			_last_frame_count = 0;
@@ -618,17 +603,15 @@ void MediaTrack::OnFrameAdded(const std::shared_ptr<MediaPacket> &media_packet)
 		}
 	}
 
-	// Calculate the framerate and bitrate every second(base on the system clock).
+	// [Wall-clock] Calculate framerate/bitrate from the previous window, then reset.
+	// The current frame is counted into the new window after accumulation below.
 	if (_timer_one_second.IsElapsed(1000))
 	{
-		// It can be greater than 1 second due to the delay of the timer or the processing time of the frame.
+		// It can be greater than 1 second due to timer delay or frame processing time.
 		auto seconds = static_cast<double>(_timer_one_second.Elapsed()) / 1000.0;
 
-		auto bitrate = static_cast<int32_t>(_last_seconds_frame_bytes * 8) / seconds;
-		SetBitrateLastSecond(bitrate);
-
-		auto framerate = static_cast<double>(_last_seconds_frame_count) / seconds;
-		SetFrameRateLastSecond(framerate);
+		SetBitrateLastSecond(static_cast<int32_t>(_last_seconds_frame_bytes * 8.0 / seconds));
+		SetFrameRateLastSecond(static_cast<double>(_last_seconds_frame_count) / seconds);
 
 		_last_seconds_frame_count = 0;
 		_last_seconds_frame_bytes = 0;
@@ -636,17 +619,21 @@ void MediaTrack::OnFrameAdded(const std::shared_ptr<MediaPacket> &media_packet)
 		_timer_one_second.Restart();
 	}
 
+	// Accumulate all counters after both calculation windows have been evaluated.
+	_total_frame_count++;
+	_total_frame_bytes += bytes;
+	_last_frame_count++;
+	_last_frame_bytes += bytes;
+	_last_seconds_frame_count++;
+	_last_seconds_frame_bytes += bytes;
+
+	// Keyframe statistics (uses _total_frame_count, so must follow accumulation above).
 	if (GetMediaType() == cmn::MediaType::Video)
 	{
 		if (media_packet->GetFlag() == MediaPacketFlag::Key)
 		{
 			_total_key_frame_count++;
-			auto key_frame_interval_avg = static_cast<double>(_total_frame_count) / static_cast<double>(_total_key_frame_count);
-
-			// Average
-			SetKeyFrameIntervalByMeasured(key_frame_interval_avg);
-
-			// Lastest
+			SetKeyFrameIntervalByMeasured(static_cast<double>(_total_frame_count) / static_cast<double>(_total_key_frame_count));
 			SetKeyFrameIntervalLastet(_key_frame_interval_count);
 			_key_frame_interval_count = 1;
 			_delta_frame_count_since_last_key_frame = 0;
@@ -654,7 +641,7 @@ void MediaTrack::OnFrameAdded(const std::shared_ptr<MediaPacket> &media_packet)
 		else if (_key_frame_interval_count > 0)
 		{
 			_key_frame_interval_count++;
-			_delta_frame_count_since_last_key_frame ++;
+			_delta_frame_count_since_last_key_frame++;
 			SetDeltaFrameCountSinceLastKeyFrame(_delta_frame_count_since_last_key_frame);
 		}
 	}
