@@ -167,6 +167,7 @@ bool OvtStream::GenerateDescription()
 		json_track["lastFrameTime"] = track->GetLastFrameTime();
 
 		json_video_track["framerate"] = track->GetFrameRate();
+		json_video_track["maxFramerate"] = track->GetMaxFrameRate();
 		auto resolution = track->GetResolution();
 		json_video_track["width"] = resolution.width;
 		json_video_track["height"] = resolution.height;

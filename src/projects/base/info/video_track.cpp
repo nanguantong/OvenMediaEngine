@@ -10,6 +10,7 @@
 
 VideoTrack::VideoTrack()
 	: _framerate_last_second(0),
+	  _max_framerate(0),
 	  _video_timescale(0),
 	  _key_frame_interval_latest(0),
 	  _delta_frame_count_since_last_key_frame(0),
@@ -280,12 +281,24 @@ void VideoTrack::SetFrameRateByMeasured(double framerate)
 {
 	std::scoped_lock lock(_video_mutex);
 	_frame_snapshot.framerate = framerate;
+	_max_framerate = std::max(_max_framerate.load(), framerate);
 }
 
 double VideoTrack::GetFrameRateByMeasured() const
 {
 	std::shared_lock lock(_video_mutex);
 	return _frame_snapshot.framerate;
+}
+
+void VideoTrack::SetMaxFrameRate(double framerate)
+{
+	std::scoped_lock lock(_video_mutex);
+	_max_framerate = std::max(std::max(_max_framerate.load(), _frame_snapshot.framerate), framerate);
+}
+
+double VideoTrack::GetMaxFrameRate() const
+{
+	return _max_framerate;
 }
 
 void VideoTrack::SetFrameRateLastSecond(double framerate)
@@ -305,6 +318,7 @@ void VideoTrack::SetFrameRateByConfig(double framerate)
 	if (framerate > 0)
 	{
 		_frame_snapshot.framerate_conf = framerate;
+		_max_framerate = std::max(_max_framerate.load(), framerate);
 	}
 	else
 	{

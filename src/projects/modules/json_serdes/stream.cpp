@@ -44,6 +44,7 @@ namespace serdes
 		SetFloat(object, "framerateConf", track->GetFrameRateByConfig());
 		SetFloat(object, "framerateAvg", track->GetFrameRateByMeasured());
 		SetFloat(object, "framerateLatest", track->GetFrameRateLastSecond());
+		SetFloat(object, "maxFramerate", track->GetMaxFrameRate());
 		SetTimebase(object, "timebase", track->GetTimeBase(), Optional::False);
 		SetBool(object, "hasBframes", track->HasBframes());
 		SetFloat(object, "keyFrameInterval", track->GetKeyFrameInterval());

@@ -84,6 +84,7 @@ bool MediaTrack::Update(const MediaTrack &media_track)
 
 	// Video
 	_frame_snapshot = media_track._frame_snapshot;
+	_max_framerate = media_track._max_framerate.load();
 	_resolution = media_track._resolution;
 	_max_resolution = media_track._max_resolution;
 	_resolution_conf = media_track._resolution_conf;
@@ -366,6 +367,7 @@ ov::String MediaTrack::GetInfoString()
 				"Resolution(%s) "
 				"MaxResolution(%s) "
 				"Framerate(%.2f) "
+				"MaxFramerate(%.2f) "
 				"KeyInterval(%.2f/%s) "
 				"SkipFrames(%d) "
 				"BFrames(%d) ",
@@ -375,7 +377,7 @@ ov::String MediaTrack::GetInfoString()
 				GetBitstreamFormatString(GetOriginBitstream()),
 				GetResolution().ToString().CStr(),
 				GetMaxResolution().ToString().CStr(),
-				GetFrameRate(),
+				GetFrameRate(), GetMaxFrameRate(),
 				GetKeyFrameInterval(),
 				cmn::GetKeyFrameIntervalTypeToString(GetKeyFrameIntervalTypeByConfig()),
 				GetSkipFramesByConfig(),
@@ -589,7 +591,7 @@ void MediaTrack::OnFrameAdded(const std::shared_ptr<MediaPacket> &media_packet)
 	_last_seconds_frame_bytes += bytes;
 
 	// Calculate the framerate and bitrate every second(base on packet timestamp).
-	if (_last_received_timestamp == 0)
+	if (_last_received_timestamp == -1)
 	{
 		_last_received_timestamp = media_packet->GetDts();
 	}
@@ -598,10 +600,16 @@ void MediaTrack::OnFrameAdded(const std::shared_ptr<MediaPacket> &media_packet)
 		auto duration = (media_packet->GetDts() - _last_received_timestamp) * _time_base.GetExpr();
 		if (duration >= 1.0)
 		{
-			auto bitrate = static_cast<int32_t>(_last_frame_bytes / duration * 8);
+			// Exclude the current frame bytes to keep bitrate interval-based
+			// (equivalent to measuring [t0, t1) at the trigger frame t1).
+			auto bytes_for_bitrate = (_last_frame_bytes > bytes) ? (_last_frame_bytes - bytes) : 0;
+			auto bitrate = static_cast<int32_t>(bytes_for_bitrate / duration * 8);
 			SetBitrateByMeasured(bitrate);
 
-			auto framerate = static_cast<double>(_last_frame_count) / duration;
+			// _last_frame_count includes the anchor frame at _last_received_timestamp,
+			// so subtract one frame to keep fps interval-based and avoid off-by-one.
+			auto frame_count_for_framerate = (_last_frame_count > 0) ? (_last_frame_count - 1) : 0;
+			auto framerate = static_cast<double>(frame_count_for_framerate) / duration;
 			SetFrameRateByMeasured(framerate);
 
 			_last_received_timestamp = media_packet->GetDts();

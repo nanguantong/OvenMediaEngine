@@ -445,6 +445,7 @@ namespace pvd
 				}
 
 				new_track->SetFrameRateByConfig(json_video_track["framerate"].asDouble());
+				new_track->SetMaxFrameRate(json_video_track["maxFramerate"].asDouble());
 				new_track->SetResolution(json_video_track["width"].asUInt(), json_video_track["height"].asUInt());
 				new_track->SetMaxResolution(json_video_track["maxWidth"].asUInt(), json_video_track["maxHeight"].asUInt());
 			}

@@ -354,7 +354,7 @@ namespace pvd
 		_oven_capabilities = capabilities;
 
 		// 26.01.08
-		// Oven-Capabilities: max_width=1920, max_height=1080
+		// Oven-Capabilities: max_width=1920, max_height=1080, max_fps=30
 
 		// Parse and apply capabilities
 		logtt("%s - Set Oven-Capabilities: %s", GetName().CStr(), capabilities.CStr());
@@ -363,6 +363,7 @@ namespace pvd
 
 		std::optional<int> max_width;
 		std::optional<int> max_height;
+		std::optional<double> max_fps;
 
 		for (const auto &param : params)
 		{
@@ -382,6 +383,10 @@ namespace pvd
 			{
 				max_height = std::atoi(value.CStr());
 			}
+			else if (key == "max_fps")
+			{
+				max_fps = std::atof(value.CStr());
+			}
 		}
 
 		if (max_width.has_value() && max_height.has_value())
@@ -393,6 +398,17 @@ namespace pvd
 
 				auto max_resolution = first_video_track->GetMaxResolution();
 				logtt("%s - Set max resolution: %s", GetName().CStr(), max_resolution.ToString().CStr());
+			}
+		}
+
+		if (max_fps.has_value())
+		{
+			auto first_video_track = GetFirstTrackByType(cmn::MediaType::Video);
+			if (first_video_track != nullptr)
+			{
+				first_video_track->SetMaxFrameRate(max_fps.value());
+
+				logtt("%s - Set max fps: %.2f", GetName().CStr(), first_video_track->GetMaxFrameRate());
 			}
 		}
 	}
@@ -725,6 +741,11 @@ namespace pvd
 
 			packet_to_send = new_packet;
 			_sent_sequence_header[track_id] = true;
+		}
+
+		if (packet_to_send->GetMediaType() == cmn::MediaType::Video)
+		{
+			logti("Video Frame: PTS(%" PRId64 ") DTS(%" PRId64 ") Duration(%lld) KeyFrame(%s) Size(%zu)", packet_to_send->GetPts(), packet_to_send->GetDts(), packet_to_send->GetDuration(), packet_to_send->IsKeyFrame() ? "Key" : "Delta", packet_to_send->GetDataLength());
 		}
 
 		SendFrame(packet_to_send);

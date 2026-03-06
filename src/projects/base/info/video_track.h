@@ -51,6 +51,9 @@ public:
 	void SetFrameRateByMeasured(double framerate);
 	double GetFrameRateByMeasured() const;
 
+	void SetMaxFrameRate(double framerate);
+	double GetMaxFrameRate() const;
+
 	void AddToMeasuredFramerateWindow(double framerate);
 	std::deque<double>  GetMeasuredFramerateWindow() const;
 
@@ -145,6 +148,9 @@ protected:
 
 	// framerate last one second (measurement)
 	std::atomic<double> _framerate_last_second = 0;
+
+	// Max FrameRate (high-water mark of measured + external cap)
+	std::atomic<double> _max_framerate = 0.0;
 
 	std::atomic<double> _video_timescale;
 	

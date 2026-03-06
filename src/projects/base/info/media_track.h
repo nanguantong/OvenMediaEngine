@@ -209,7 +209,7 @@ protected:
 	std::atomic<uint64_t> _last_frame_count = 0;
 	std::atomic<uint64_t> _last_frame_bytes = 0;
 	
-	std::atomic<int64_t> _last_received_timestamp = 0;
+	std::atomic<int64_t> _last_received_timestamp = -1;
 
 	// Validity
 	std::atomic<bool> _is_valid = false;
