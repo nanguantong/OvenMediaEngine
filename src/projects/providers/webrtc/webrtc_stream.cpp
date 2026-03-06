@@ -743,11 +743,6 @@ namespace pvd
 			_sent_sequence_header[track_id] = true;
 		}
 
-		if (packet_to_send->GetMediaType() == cmn::MediaType::Video)
-		{
-			logti("Video Frame: PTS(%" PRId64 ") DTS(%" PRId64 ") Duration(%lld) KeyFrame(%s) Size(%zu)", packet_to_send->GetPts(), packet_to_send->GetDts(), packet_to_send->GetDuration(), packet_to_send->IsKeyFrame() ? "Key" : "Delta", packet_to_send->GetDataLength());
-		}
-
 		SendFrame(packet_to_send);
 
 		// Send FIR to reduce keyframe interval
