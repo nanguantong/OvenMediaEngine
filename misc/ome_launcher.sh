@@ -289,7 +289,7 @@ preload_nvidia_driver() {
         "libcuda.so.1"
         "libnppicc.so.12" 
         "libnppig.so.12" 
-        "libcudart.so.12.0"
+        "libcudart.so.12"
         "libcublas.so.12"
         "libcublasLt.so.12"
     )
