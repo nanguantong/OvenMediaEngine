@@ -110,7 +110,7 @@ namespace mon::alrt
 			new_messages_keys.push_back(messages_key);
 
 			std::map<uint32_t, std::shared_ptr<QueueMetrics>> congest_queue_metric_list;
-			const auto queue_metric_list = MonitorInstance->GetServerMetrics()->GetQueueMetricsList();
+			const auto queue_metric_list = MonitorInstance->GetQueueMetricsList();
 			for (const auto &[queue_key, queue_metric] : queue_metric_list)
 			{
 				if (!VerifyQueueCongestionRules(*rules, queue_metric, message_list))

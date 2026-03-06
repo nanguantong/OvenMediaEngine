@@ -11,6 +11,8 @@
 #include "event_logger.h"
 #include "server_metrics.h"
 
+#include <shared_mutex>
+
 #define MonitorInstance mon::Monitoring::GetInstance()
 #define HostMetrics(info) mon::Monitoring::GetInstance()->GetHostMetrics(info);
 #define ApplicationMetrics(info) mon::Monitoring::GetInstance()->GetApplicationMetrics(info);
@@ -38,6 +40,7 @@ namespace mon
 
 		std::shared_ptr<ServerMetrics> GetServerMetrics();
 		std::map<uint32_t, std::shared_ptr<HostMetrics>> GetHostMetricsList();
+		std::map<uint32_t, std::shared_ptr<QueueMetrics>> GetQueueMetricsList();
 		std::shared_ptr<HostMetrics> GetHostMetrics(const info::Host &host_info);
 		std::shared_ptr<ApplicationMetrics> GetApplicationMetrics(const info::Application &app_info);
 		std::shared_ptr<StreamMetrics> GetStreamMetrics(const info::Stream &stream_info);
@@ -60,10 +63,16 @@ namespace mon
 		void OnSessionDisconnected(const info::Stream &stream_info, PublisherType type);
 		void OnSessionsDisconnected(const info::Stream &stream_info, PublisherType type, uint64_t number_of_sessions);
 
+		// Queue events (proxy for ServerMetrics)
+		bool OnQueueCreated(const info::ManagedQueue &queue_info);
+		void OnQueueDeleted(const info::ManagedQueue &queue_info);
+		void OnQueueUpdated(const info::ManagedQueue &queue_info, bool with_metadata = false);
+
 		std::shared_ptr<alrt::Alert> GetAlert();
 
 	private:
 		ov::DelayQueue _timer{"MonLogTimer"};
+		mutable std::shared_mutex _server_metric_guard;
 		std::shared_ptr<ServerMetrics> _server_metric = nullptr;
 		EventLogger _logger;
 		EventForwarder _forwarder;

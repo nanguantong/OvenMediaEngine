@@ -10,7 +10,16 @@ namespace mon
 {
 	void Monitoring::Release()
 	{
-		OV_SAFE_RESET(_server_metric, nullptr, _server_metric->Release(), _server_metric);
+		std::shared_ptr<ServerMetrics> to_release;
+		{
+			std::unique_lock<std::shared_mutex> lock(_server_metric_guard);
+			to_release = std::move(_server_metric);
+			_server_metric = nullptr;
+		}
+		if (to_release != nullptr)
+		{
+			to_release->Release();
+		}
 		_forwarder.Stop();
 
 		if (_alert != nullptr)
@@ -21,17 +30,38 @@ namespace mon
 
 	std::shared_ptr<ServerMetrics> Monitoring::GetServerMetrics()
 	{
+		std::shared_lock<std::shared_mutex> lock(_server_metric_guard);
 		return _server_metric;
 	}
 
 	std::map<uint32_t, std::shared_ptr<HostMetrics>> Monitoring::GetHostMetricsList()
 	{
-		return _server_metric->GetHostMetricsList();
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return {};
+		}
+		return server_metric->GetHostMetricsList();
+	}
+
+	std::map<uint32_t, std::shared_ptr<QueueMetrics>> Monitoring::GetQueueMetricsList()
+	{
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return {};
+		}
+		return server_metric->GetQueueMetricsList();
 	}
 
 	std::shared_ptr<HostMetrics> Monitoring::GetHostMetrics(const info::Host &host_info)
 	{
-		return _server_metric->GetHostMetrics(host_info);
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return nullptr;
+		}
+		return server_metric->GetHostMetrics(host_info);
 	}
 
 	std::shared_ptr<ApplicationMetrics> Monitoring::GetApplicationMetrics(const info::Application &app_info)
@@ -85,24 +115,39 @@ namespace mon
 
 	void Monitoring::OnServerStarted(const std::shared_ptr<const cfg::Server> &server_config)
 	{
-		_server_metric	 = std::make_shared<ServerMetrics>(server_config);
-		_is_analytics_on = _server_metric->GetConfig()->GetAnalytics().IsParsed();
+		{
+			std::unique_lock<std::shared_mutex> lock(_server_metric_guard);
+			_server_metric = std::make_shared<ServerMetrics>(server_config);
+		}
+
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return;
+		}
+
+		_is_analytics_on = server_metric->GetConfig()->GetAnalytics().IsParsed();
 
 		_alert			 = std::make_shared<alrt::Alert>();
 		_alert->Start(server_config);
 
 		logti("%s(%s) ServerMetric has been started for monitoring - %s",
 			  server_config->GetName().CStr(), server_config->GetID().CStr(),
-			  ov::Converter::ToISO8601String(_server_metric->GetServerStartedTime()).CStr());
+			  ov::Converter::ToISO8601String(server_metric->GetServerStartedTime()).CStr());
 
 		if (IsAnalyticsOn())
 		{
-			auto event = Event(EventType::ServerStarted, _server_metric);
+			auto event = Event(EventType::ServerStarted, server_metric);
 			_logger.Write(event);
 
 			_timer.Push(
 				[this](void *parameter) -> ov::DelayQueueAction {
-					auto event = Event(EventType::ServerStat, _server_metric);
+					auto server_metric = GetServerMetrics();
+					if (server_metric == nullptr)
+					{
+						return ov::DelayQueueAction::Stop;
+					}
+					auto event = Event(EventType::ServerStat, server_metric);
 					_logger.Write(event);
 					return ov::DelayQueueAction::Repeat;
 				},
@@ -116,15 +161,21 @@ namespace mon
 
 	bool Monitoring::OnHostCreated(const info::Host &host_info)
 	{
-		if (_server_metric->OnHostCreated(host_info) == false)
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return false;
+		}
+
+		if (server_metric->OnHostCreated(host_info) == false)
 		{
 			return false;
 		}
 
 		if (IsAnalyticsOn())
 		{
-			auto host_metrics = _server_metric->GetHostMetrics(host_info);
-			auto event		  = Event(EventType::HostCreated, _server_metric);
+			auto host_metrics = server_metric->GetHostMetrics(host_info);
+			auto event		  = Event(EventType::HostCreated, server_metric);
 			event.SetExtraMetric(host_metrics);
 			_logger.Write(event);
 		}
@@ -134,15 +185,21 @@ namespace mon
 
 	bool Monitoring::OnHostDeleted(const info::Host &host_info)
 	{
-		if (_server_metric->OnHostDeleted(host_info) == false)
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return false;
+		}
+
+		if (server_metric->OnHostDeleted(host_info) == false)
 		{
 			return false;
 		}
 
 		if (IsAnalyticsOn())
 		{
-			auto host_metrics = _server_metric->GetHostMetrics(host_info);
-			auto event		  = Event(EventType::HostDeleted, _server_metric);
+			auto host_metrics = server_metric->GetHostMetrics(host_info);
+			auto event		  = Event(EventType::HostDeleted, server_metric);
 			event.SetExtraMetric(host_metrics);
 			_logger.Write(event);
 		}
@@ -152,7 +209,13 @@ namespace mon
 
 	bool Monitoring::OnApplicationCreated(const info::Application &app_info)
 	{
-		auto host_metrics = _server_metric->GetHostMetrics(app_info.GetHostInfo());
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return false;
+		}
+
+		auto host_metrics = server_metric->GetHostMetrics(app_info.GetHostInfo());
 		if (host_metrics == nullptr)
 		{
 			return false;
@@ -171,7 +234,7 @@ namespace mon
 
 		if (IsAnalyticsOn())
 		{
-			auto event = Event(EventType::AppCreated, _server_metric);
+			auto event = Event(EventType::AppCreated, server_metric);
 			event.SetExtraMetric(app_metrics);
 			_logger.Write(event);
 		}
@@ -180,7 +243,13 @@ namespace mon
 	}
 	bool Monitoring::OnApplicationDeleted(const info::Application &app_info)
 	{
-		auto host_metrics = _server_metric->GetHostMetrics(app_info.GetHostInfo());
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return false;
+		}
+
+		auto host_metrics = server_metric->GetHostMetrics(app_info.GetHostInfo());
 		if (host_metrics == nullptr)
 		{
 			return false;
@@ -198,7 +267,7 @@ namespace mon
 
 		if (IsAnalyticsOn())
 		{
-			auto event = Event(EventType::AppDeleted, _server_metric);
+			auto event = Event(EventType::AppDeleted, server_metric);
 			event.SetExtraMetric(app_metrics);
 			_logger.Write(event);
 		}
@@ -257,9 +326,13 @@ namespace mon
 
 		if (IsAnalyticsOn())
 		{
-			auto event = Event(event_type, _server_metric);
-			event.SetExtraMetric(stream_metrics);
-			_logger.Write(event);
+			auto server_metric = GetServerMetrics();
+			if (server_metric != nullptr)
+			{
+				auto event = Event(event_type, server_metric);
+				event.SetExtraMetric(stream_metrics);
+				_logger.Write(event);
+			}
 		}
 
 		return true;
@@ -381,9 +454,13 @@ namespace mon
 		{
 			if (stream_metrics->IsInputStream())
 			{
-				auto event = Event(EventType::StreamDeleted, _server_metric);
-				event.SetExtraMetric(stream_metrics);
-				_logger.Write(event);
+				auto server_metric = GetServerMetrics();
+				if (server_metric != nullptr)
+				{
+					auto event = Event(EventType::StreamDeleted, server_metric);
+					event.SetExtraMetric(stream_metrics);
+					_logger.Write(event);
+				}
 			}
 		}
 
@@ -395,9 +472,45 @@ namespace mon
 		return true;
 	}
 
+	bool Monitoring::OnQueueCreated(const info::ManagedQueue &queue_info)
+	{
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			// Server is shutting down, treat as success to stop retry loop
+			return true;
+		}
+		return server_metric->OnQueueCreated(queue_info);
+	}
+
+	void Monitoring::OnQueueDeleted(const info::ManagedQueue &queue_info)
+	{
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return;
+		}
+		server_metric->OnQueueDeleted(queue_info);
+	}
+
+	void Monitoring::OnQueueUpdated(const info::ManagedQueue &queue_info, bool with_metadata)
+	{
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return;
+		}
+		server_metric->OnQueueUpdated(queue_info, with_metadata);
+	}
+
 	void Monitoring::IncreaseBytesIn(const info::Stream &stream_info, uint64_t value)
 	{
-		auto host_metric = _server_metric->GetHostMetrics(stream_info.GetApplicationInfo().GetHostInfo());
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return;
+		}
+		auto host_metric = server_metric->GetHostMetrics(stream_info.GetApplicationInfo().GetHostInfo());
 		if (host_metric == nullptr)
 		{
 			return;
@@ -413,7 +526,7 @@ namespace mon
 			return;
 		}
 
-		_server_metric->IncreaseBytesIn(value);
+		server_metric->IncreaseBytesIn(value);
 		host_metric->IncreaseBytesIn(value);
 		app_metric->IncreaseBytesIn(value);
 		stream_metric->IncreaseBytesIn(value);
@@ -421,7 +534,12 @@ namespace mon
 
 	void Monitoring::IncreaseBytesOut(const info::Stream &stream_info, PublisherType type, uint64_t value)
 	{
-		auto host_metric = _server_metric->GetHostMetrics(stream_info.GetApplicationInfo().GetHostInfo());
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return;
+		}
+		auto host_metric = server_metric->GetHostMetrics(stream_info.GetApplicationInfo().GetHostInfo());
 		if (host_metric == nullptr)
 		{
 			return;
@@ -437,7 +555,7 @@ namespace mon
 			return;
 		}
 
-		_server_metric->IncreaseBytesOut(type, value);
+		server_metric->IncreaseBytesOut(type, value);
 		host_metric->IncreaseBytesOut(type, value);
 		app_metric->IncreaseBytesOut(type, value);
 		stream_metric->IncreaseBytesOut(type, value);
@@ -445,7 +563,12 @@ namespace mon
 
 	void Monitoring::OnSessionConnected(const info::Stream &stream_info, PublisherType type)
 	{
-		auto host_metric = _server_metric->GetHostMetrics(stream_info.GetApplicationInfo().GetHostInfo());
+		auto server_metric = GetServerMetrics();
+		if (server_metric == nullptr)
+		{
+			return;
+		}
+		auto host_metric = server_metric->GetHostMetrics(stream_info.GetApplicationInfo().GetHostInfo());
 		if (host_metric == nullptr)
 		{
 			return;
@@ -461,7 +584,7 @@ namespace mon
 			return;
 		}
 
-		_server_metric->OnSessionConnected(type);
+		server_metric->OnSessionConnected(type);
 		host_metric->OnSessionConnected(type);
 		app_metric->OnSessionConnected(type);
 		stream_metric->OnSessionConnected(type);
@@ -469,7 +592,7 @@ namespace mon
 
 	void Monitoring::OnSessionDisconnected(const info::Stream &stream_info, PublisherType type)
 	{
-		auto server_metric = _server_metric;
+		auto server_metric = GetServerMetrics();
 		if (server_metric == nullptr)
 		{
 			return;
@@ -499,13 +622,13 @@ namespace mon
 
 	void Monitoring::OnSessionsDisconnected(const info::Stream &stream_info, PublisherType type, uint64_t number_of_sessions)
 	{
-		auto server_metric = _server_metric;
+		auto server_metric = GetServerMetrics();
 		if (server_metric == nullptr)
 		{
 			return;
 		}
 
-		auto host_metric = _server_metric->GetHostMetrics(stream_info.GetApplicationInfo().GetHostInfo());
+		auto host_metric = server_metric->GetHostMetrics(stream_info.GetApplicationInfo().GetHostInfo());
 		if (host_metric == nullptr)
 		{
 			return;
@@ -521,7 +644,7 @@ namespace mon
 			return;
 		}
 
-		_server_metric->OnSessionsDisconnected(type, number_of_sessions);
+		server_metric->OnSessionsDisconnected(type, number_of_sessions);
 		host_metric->OnSessionsDisconnected(type, number_of_sessions);
 		app_metric->OnSessionsDisconnected(type, number_of_sessions);
 		stream_metric->OnSessionsDisconnected(type, number_of_sessions);

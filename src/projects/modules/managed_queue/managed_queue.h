@@ -73,7 +73,7 @@ namespace ov
 			{
 				SetId(IssueUniqueQueueId());
 
-				if (MonitorInstance->GetServerMetrics()->OnQueueCreated(*this) == true)
+				if (MonitorInstance->OnQueueCreated(*this) == true)
 				{
 					break;
 				}
@@ -85,21 +85,21 @@ namespace ov
 			Clear();
 
 			// Unregister to the server metrics
-			MonitorInstance->GetServerMetrics()->OnQueueDeleted(*this);
+			MonitorInstance->OnQueueDeleted(*this);
 		}
 
 		void SetUrn(std::shared_ptr<info::ManagedQueue::URN> urn)
 		{
 			info::ManagedQueue::SetUrn(urn, Demangle(typeid(T).name()).CStr());
 
-			MonitorInstance->GetServerMetrics()->OnQueueUpdated(*this, true);
+			MonitorInstance->OnQueueUpdated(*this, true);
 		}
 
 		void SetThreshold(size_t threshold)
 		{
 			info::ManagedQueue::SetThreshold(threshold);
 
-			MonitorInstance->GetServerMetrics()->OnQueueUpdated(*this, true);
+			MonitorInstance->OnQueueUpdated(*this, true);
 		}				
 
 		// Urgent item will be inserted at the front of the queue
@@ -600,7 +600,7 @@ namespace ov
 					_threshold_exceeded_time_in_us = 0;
 				}
 
-				MonitorInstance->GetServerMetrics()->OnQueueUpdated(*this);
+				MonitorInstance->OnQueueUpdated(*this);
 			}
 		}
 
@@ -613,7 +613,7 @@ namespace ov
 			_output_message_count = 0;
 			_threshold_exceeded_time_in_us = 0;
 
-			MonitorInstance->GetServerMetrics()->OnQueueUpdated(*this);
+			MonitorInstance->OnQueueUpdated(*this);
 		}
 
 	private:
