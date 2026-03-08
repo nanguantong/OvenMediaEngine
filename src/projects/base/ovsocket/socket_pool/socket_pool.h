@@ -29,54 +29,43 @@ namespace ov
 			return std::make_shared<SocketPool>(PrivateToken{nullptr}, name, type, thread_per_socket);
 		}
 
-		static std::shared_ptr<SocketPool> GetTcpPool()
+		static std::shared_ptr<SocketPool> GetPool(const char *name, SocketType type)
 		{
 			static std::shared_ptr<SocketPool> pool;
 			static std::mutex mutex;
 
-			if (pool == nullptr)
+			auto current_pool = std::atomic_load(&pool);
+
+			if (current_pool == nullptr)
 			{
 				std::lock_guard lock_guard(mutex);
 
 				if (pool == nullptr)
 				{
-					auto new_pool = Create("DefTcp", SocketType::Tcp, false);
+					auto new_pool = Create(name, type, false);
 
 					if (new_pool != nullptr)
 					{
 						new_pool->Initialize(1);
 					}
 
-					pool = new_pool;
+					std::atomic_store(&pool, new_pool);
 				}
+
+				current_pool = std::atomic_load(&pool);
 			}
 
-			return pool;
+			return current_pool;
+		}
+
+		static std::shared_ptr<SocketPool> GetTcpPool()
+		{
+			return GetPool("DefTcp", SocketType::Tcp);
 		}
 
 		static std::shared_ptr<SocketPool> GetUdpPool()
 		{
-			static std::shared_ptr<SocketPool> pool;
-			static std::mutex mutex;
-
-			if (pool == nullptr)
-			{
-				std::lock_guard lock_guard(mutex);
-
-				if (pool == nullptr)
-				{
-					auto new_pool = Create("DefUdp", SocketType::Udp, false);
-
-					if (new_pool != nullptr)
-					{
-						new_pool->Initialize(1);
-					}
-
-					pool = new_pool;
-				}
-			}
-
-			return pool;
+			return GetPool("DefUdp", SocketType::Udp);
 		}
 
 		ov::String GetName() const
