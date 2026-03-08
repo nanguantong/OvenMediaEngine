@@ -21,27 +21,30 @@ DEFAULT_EXE_BIN="${OME_EXE_BIN:-OvenMediaEngine}"
 #############################################################################################
 prepare_colors()
 {
+    COLOR_RESET=""
+    COLOR_RED=""
+    COLOR_GREEN=""
+    COLOR_YELLOW=""
+    COLOR_BLUE=""
+    COLOR_CYAN=""
+    COLOR_WHITE=""
+    COLOR_GRAY=""
+
 	local COLORS=$(tput colors 2>/dev/null)
 
 	if [[ -n "${COLORS}" && ${COLORS} -ge 8 ]]
 	then
-		COLOR_BOLD="$(tput bold)"
-		COLOR_UNDERLINE="$(tput smul)"
-		COLOR_STANDOUT="$(tput smso)"
 		COLOR_RESET="$(tput sgr0)"
-
-		COLOR_BLACK="$(tput setaf 0)"
 		COLOR_RED="$(tput setaf 1)"
 		COLOR_GREEN="$(tput setaf 2)"
 		COLOR_YELLOW="$(tput setaf 3)"
 		COLOR_BLUE="$(tput setaf 4)"
-		COLOR_MAGENTA="$(tput setaf 5)"
 		COLOR_CYAN="$(tput setaf 6)"
 		COLOR_WHITE="$(tput setaf 7)"
 		COLOR_GRAY="$(tput setaf 8)"
 	fi
 
-	PRESET_HIGHLIGHT="${COLOR_CYAN}"
+    PRESET_HIGHLIGHT="${COLOR_CYAN:-}"
 }
 
 logd()
