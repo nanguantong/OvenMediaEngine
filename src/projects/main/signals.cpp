@@ -471,6 +471,9 @@ namespace ov::sig
 						}
 					},
 					sig_set);
+
+				::pthread_setname_np(g_signal_thread.native_handle(), "SignalMonitor");
+
 				// Detach because we don't have a clean join point and it runs for the lifetime of the process.
 				g_signal_thread.detach();
 			}
