@@ -8,6 +8,8 @@
 //==============================================================================
 #pragma once
 
+#include <stdexcept>
+
 #include "socket_pool_worker.h"
 
 namespace ov
@@ -29,43 +31,46 @@ namespace ov
 			return std::make_shared<SocketPool>(PrivateToken{nullptr}, name, type, thread_per_socket);
 		}
 
-		static std::shared_ptr<SocketPool> GetPool(const char *name, SocketType type)
+		static std::shared_ptr<SocketPool> GetPool(std::shared_ptr<SocketPool> &pool, std::once_flag &once_flag, const char *name, SocketType type)
 		{
-			static std::shared_ptr<SocketPool> pool;
-			static std::mutex mutex;
-
-			auto current_pool = std::atomic_load(&pool);
-
-			if (current_pool == nullptr)
+			try
 			{
-				std::lock_guard lock_guard(mutex);
+				std::call_once(
+					once_flag,
+					[name, type, &pool]() {
+						auto new_pool = Create(name, type, false);
 
-				if (pool == nullptr)
-				{
-					auto new_pool = Create(name, type, false);
+						if ((new_pool != nullptr) && new_pool->Initialize(1))
+						{
+							pool = std::move(new_pool);
+							return;
+						}
 
-					if (new_pool != nullptr)
-					{
-						new_pool->Initialize(1);
-					}
-
-					std::atomic_store(&pool, new_pool);
-				}
-
-				current_pool = std::atomic_load(&pool);
+						throw std::runtime_error("Could not initialize socket pool");
+					});
+			}
+			catch (const std::runtime_error &)
+			{
+				return nullptr;
 			}
 
-			return current_pool;
+			return pool;
 		}
 
 		static std::shared_ptr<SocketPool> GetTcpPool()
 		{
-			return GetPool("DefTcp", SocketType::Tcp);
+			static std::shared_ptr<SocketPool> pool;
+			static std::once_flag once_flag;
+
+			return GetPool(pool, once_flag, "DefTcp", SocketType::Tcp);
 		}
 
 		static std::shared_ptr<SocketPool> GetUdpPool()
 		{
-			return GetPool("DefUdp", SocketType::Udp);
+			static std::shared_ptr<SocketPool> pool;
+			static std::once_flag once_flag;
+
+			return GetPool(pool, once_flag, "DefUdp", SocketType::Udp);
 		}
 
 		ov::String GetName() const
