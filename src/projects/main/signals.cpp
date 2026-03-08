@@ -10,21 +10,25 @@
 
 #include <base/ovlibrary/ovlibrary.h>
 #include <config/config_manager.h>
+#include <dirent.h>
+#include <errno.h>
 #include <malloc.h>
 #include <orchestrator/orchestrator.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <sys/ucontext.h>
 #include <sys/utsname.h>
+#include <time.h>
+#include <unistd.h>
 
 #include <fstream>
 #include <iostream>
+#include <thread>
+#include <vector>
 
 #include "./main_private.h"
 #include "./third_parties.h"
 #include "main.h"
-
-// 1 == true, 0 == false
-volatile sig_atomic_t g_is_terminated;
 
 #define SIGNAL_CASE(x) \
 	case x:            \
@@ -32,8 +36,18 @@ volatile sig_atomic_t g_is_terminated;
 
 namespace ov::sig
 {
+	constexpr int SIG_ATOMIC_TRUE  = 1;
+	constexpr int SIG_ATOMIC_FALSE = 0;
+
+	constexpr int MAX_SIGINT_COUNT = 3;
+
 	namespace
 	{
+		std::atomic<bool> g_need_to_stop = false;
+		sem_t g_semaphore;
+
+		std::thread g_signal_thread;
+
 		// Occasionally, the memory can become corrupted and the version may not be displayed.
 		// In such cases, it is stored in a separate variable for later reference.
 		//
@@ -47,6 +61,7 @@ namespace ov::sig
 		int SIG_JEMALLOC_SHOW_STATS	  = (SIGRTMIN + 0);
 		// SIGRTMIN+1: Trigger dump (This only works when `OME_USE_JEMALLOC_PROFILE` is defined)
 		int SIG_JEMALLOC_TRIGGER_DUMP = (SIGRTMIN + 1);
+		bool g_use_jemalloc_signal	  = false;
 #endif	// OME_USE_JEMALLOC
 
 		using OV_SIG_ACTION = void (*)(int signum, siginfo_t *si, void *unused);
@@ -103,6 +118,7 @@ namespace ov::sig
 			}
 		}
 
+		// If `action` is `nullptr`, the signal will be ignored (`SIG_IGN`).
 		template <typename... Tsignal>
 		bool RegisterSignals(OV_SIG_ACTION action, int sig, Tsignal... sigs)
 		{
@@ -110,7 +126,10 @@ namespace ov::sig
 
 			struct sigaction sa{};
 
-			sa.sa_flags = SA_SIGINFO;
+			if (action != nullptr)
+			{
+				sa.sa_flags = SA_SIGINFO;
+			}
 
 			// sigemptyset is a macro on macOS, so :: breaks compilation
 #if defined(__APPLE__)
@@ -119,23 +138,75 @@ namespace ov::sig
 			::sigemptyset(&sa.sa_mask);
 #endif
 
-			const bool mask_added = (::sigaddset(&sa.sa_mask, sig) == 0) &&
-									((::sigaddset(&sa.sa_mask, sigs) == 0) && ...);
-
-			if (mask_added == false)
+			if (action != nullptr)
 			{
-				return false;
+				const bool mask_added = (::sigaddset(&sa.sa_mask, sig) == 0) &&
+										((::sigaddset(&sa.sa_mask, sigs) == 0) && ...);
+
+				if (mask_added == false)
+				{
+					logtc("Failed to add signals to the mask.");
+					return false;
+				}
+
+				sa.sa_sigaction = action;
+			}
+			else
+			{
+				sa.sa_handler = SIG_IGN;
 			}
 
-			sa.sa_sigaction = action;
+			auto result = (::sigaction(sig, &sa, nullptr) == 0) &&
+						  ((::sigaction(sigs, &sa, nullptr) == 0) && ...);
 
-			return (::sigaction(sig, &sa, nullptr) == 0) &&
-				   ((::sigaction(sigs, &sa, nullptr) == 0) && ...);
+			if (result == false)
+			{
+				logtc("Failed to register signals.");
+			}
+
+			return result;
+		}
+
+#if DEBUG
+		size_t GetProcessThreadCount()
+		{
+#	if IS_LINUX
+			auto *directory = ::opendir("/proc/self/task");
+			if (directory == nullptr)
+			{
+				return 0;
+			}
+
+			size_t thread_count = 0;
+
+			while (auto *entry = ::readdir(directory))
+			{
+				if (entry->d_name[0] == '.')
+				{
+					continue;
+				}
+
+				thread_count++;
+			}
+
+			::closedir(directory);
+			return thread_count;
+#	else
+			return 1;
+#	endif	// IS_LINUX
+		}
+#endif	// DEBUG
+
+		void RequestStop(int signum)
+		{
+			g_need_to_stop = true;
+
+			::sem_post(&g_semaphore);
 		}
 
 		namespace handlers
 		{
-			volatile static sig_atomic_t g_is_abort_triggered = 0;
+			volatile static sig_atomic_t g_is_abort_triggered = SIG_ATOMIC_FALSE;
 
 			// Handler for abort signals
 			//
@@ -146,8 +217,8 @@ namespace ov::sig
 			{
 				// Allow only the first thread entering this handler to proceed.
 				// If another signal arrives concurrently, skip re-entry and return.
-				sig_atomic_t expected = 0;
-				if (::__atomic_compare_exchange_n(&g_is_abort_triggered, &expected, 1, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) == false)
+				sig_atomic_t expected = SIG_ATOMIC_FALSE;
+				if (::__atomic_compare_exchange_n(&g_is_abort_triggered, &expected, SIG_ATOMIC_TRUE, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) == false)
 				{
 					return;
 				}
@@ -271,93 +342,146 @@ namespace ov::sig
 				::_exit(signum);
 			}
 
-			// WARNING: USE THIS SIGNAL FOR DEBUGGING PURPOSE ONLY
-			void SigUsr1(int signum, siginfo_t *si, void *ctx)
+			void MonitoredSignal(int signum)
 			{
-				logtc("Trim result: %d", ::malloc_trim(0));
-			}
+				static std::atomic<int> sigint_count = 0;
 
-			void SigHup(int signum, siginfo_t *si, void *unused)
-			{
-				logti("Received SIGHUP signal. This signal is not implemented yet.");
-				return;
-
-				// logti("Trying to reload configuration...");
-
-				// auto config_manager = cfg::ConfigManager::GetInstance();
-
-				// try
-				// {
-				// 	config_manager->ReloadConfigs();
-				// }
-				// catch (const cfg::ConfigError &error)
-				// {
-				// 	logte("An error occurred while reload configuration: %s", error.What());
-				// 	return;
-				// }
-
-				// logti("Trying to apply OriginMap to Orchestrator...");
-
-				// std::vector<info::Host> host_info_list;
-				// // Create info::Host
-				// auto server_config = config_manager->GetServer();
-				// auto hosts = server_config->GetVirtualHostList();
-				// for (const auto &host : hosts)
-				// {
-				// 	host_info_list.emplace_back(info::Host(server_config->GetName(), server_config->GetID(), host));
-				// }
-
-				// if (ocst::Orchestrator::GetInstance()->UpdateVirtualHosts(host_info_list) == false)
-				// {
-				// 	logte("Could not reload OriginMap");
-				// }
-			}
-
-			void SigTerm(int signum, siginfo_t *si, void *unused)
-			{
-				logtw("Caught terminate signal %d. OME is terminating...", signum);
-				g_is_terminated = 1;
-			}
-
-			void SigInt(int signum, siginfo_t *si, void *unused)
-			{
-				static constexpr int TERMINATE_COUNT = 3;
-				static int signal_count				 = 0;
-
-				signal_count++;
-
-				if (signal_count == TERMINATE_COUNT)
+				switch (signum)
 				{
-					logtc("The termination request has been made %d times by signal %d. OME is forcibly terminated.", TERMINATE_COUNT, signum);
-					::exit(1);
-				}
-				else
-				{
-					logtc("Caught terminate signal %d. Trying to terminating... (Repeat %d more times to forcibly terminate)", signum, (TERMINATE_COUNT - signal_count));
-				}
+					case SIGINT: {
+						auto count = ++sigint_count;
 
-				g_is_terminated = 1;
-			}
+						if (count >= MAX_SIGINT_COUNT)
+						{
+							logtc("The termination request has been made %d times by signal %d. OME is forcibly terminated.",
+								  static_cast<int>(count),
+								  signum);
+							::_exit(1);
+						}
+
+						logtc("Caught terminate signal %d. Trying to terminate... (Repeat %d more times to forcibly terminate)",
+							  signum,
+							  static_cast<int>(MAX_SIGINT_COUNT - count));
+
+						RequestStop(signum);
+						return;
+					}
+
+					case SIGTERM:
+						[[fallthrough]];
+					case SIGQUIT:
+						logtw("Caught terminate signal %d. OME is terminating...", signum);
+
+						RequestStop(signum);
+						return;
+
+					case SIGHUP:
+						logti("Received SIGHUP signal.");
+						return;
+
+					case SIGUSR1:
+						logtc("Trim result: %d", ::malloc_trim(0));
+						return;
+				}
 
 #ifdef OME_USE_JEMALLOC
-			void SigRt(int signum, siginfo_t *si, void *unused)
-			{
-				(void)si;
-				(void)unused;
+				if (g_use_jemalloc_signal)
+				{
+					if (signum == SIG_JEMALLOC_SHOW_STATS)
+					{
+						logtc("Jemalloc stats signal received.");
+						JemallocShowStats();
+						return;
+					}
+					else if (signum == SIG_JEMALLOC_TRIGGER_DUMP)
+					{
+						logtc("Jemalloc dump trigger signal received.");
+						JemallocTriggerDump();
+						return;
+					}
+				}
+#endif	// OME_USE_JEMALLOC
 
-				if (signum == SIG_JEMALLOC_SHOW_STATS)
-				{
-					logtc("Jemalloc stats signal received.");
-					JemallocShowStats();
-				}
-				else if (signum == SIG_JEMALLOC_TRIGGER_DUMP)
-				{
-					logtc("Jemalloc dump trigger signal received.");
-					JemallocTriggerDump();
-				}
+				logtw("Unhandled monitored signal %d (%s)", signum, GetSignalName(signum));
+			}
+		}  // namespace handlers
+
+		bool InitializeSignalMonitorThread()
+		{
+#ifdef OME_USE_JEMALLOC
+			g_use_jemalloc_signal = true;
+
+			if (SIG_JEMALLOC_TRIGGER_DUMP >= SIGRTMAX)
+			{
+				logtc("Cannot initialize SIGRT handler for jemalloc: `SIGRTMAX` is too small.");
+				g_use_jemalloc_signal = false;
 			}
 #endif	// OME_USE_JEMALLOC
-		}  // namespace handlers
+
+			sigset_t sig_set;
+
+#if defined(__APPLE__)
+			sigemptyset(&sig_set);
+#else
+			::sigemptyset(&sig_set);
+#endif
+
+			bool success = true;
+
+			success		 = success && (::sigaddset(&sig_set, SIGINT) == 0);
+			success		 = success && (::sigaddset(&sig_set, SIGTERM) == 0);
+			success		 = success && (::sigaddset(&sig_set, SIGHUP) == 0);
+			success		 = success && (::sigaddset(&sig_set, SIGQUIT) == 0);
+			success		 = success && (::sigaddset(&sig_set, SIGUSR1) == 0);
+
+#ifdef OME_USE_JEMALLOC
+			if (g_use_jemalloc_signal)
+			{
+				success = success && (::sigaddset(&sig_set, SIG_JEMALLOC_SHOW_STATS) == 0);
+				success = success && (::sigaddset(&sig_set, SIG_JEMALLOC_TRIGGER_DUMP) == 0);
+			}
+#endif	// OME_USE_JEMALLOC
+
+			if (success == false)
+			{
+				logtc("Failed to configure the monitored signal set.");
+				return false;
+			}
+
+			// Block signals in the main thread so they are handled by the dedicated thread.
+			// This mask will be inherited by all subsequently created threads.
+			if (::pthread_sigmask(SIG_BLOCK, &sig_set, nullptr) != 0)
+			{
+				logtc("Failed to block monitored signals in the main thread.");
+				return false;
+			}
+
+			try
+			{
+				g_signal_thread = std::thread(
+					+[](sigset_t sig_set) {
+						while (true)
+						{
+							int signum = 0;
+
+							if (::sigwait(&sig_set, &signum) == 0)
+							{
+								handlers::MonitoredSignal(signum);
+							}
+						}
+					},
+					sig_set);
+				// Detach because we don't have a clean join point and it runs for the lifetime of the process.
+				g_signal_thread.detach();
+			}
+			catch (const std::exception &ex)
+			{
+				logtc("Failed to start signal monitor thread: %s", ex.what());
+				return false;
+			}
+
+			return true;
+		}
 
 		bool InitializeInternal()
 		{
@@ -375,27 +499,38 @@ namespace ov::sig
 			//	58) SIGRTMAX-6	59) SIGRTMAX-5	60) SIGRTMAX-4	61) SIGRTMAX-3	62) SIGRTMAX-2
 			//	63) SIGRTMAX-1	64) SIGRTMAX
 
-			g_is_terminated = 0;
+#if DEBUG
+			const auto thread_count = GetProcessThreadCount();
+			if (thread_count == 0)
+			{
+				logtc("Failed to inspect the current process thread count.");
+				return false;
+			}
+
+			OV_ASSERT(thread_count == 1, "ov::sig::Initialize() must be called before any extra threads are created (thread_count: %zu)", thread_count);
+			if (thread_count != 1)
+			{
+				logtc("ov::sig::Initialize() must be called before any extra threads are created (thread_count: %zu)", thread_count);
+				return false;
+			}
+#endif	// DEBUG
+
+			if (::sem_init(&g_semaphore, 0, 0) != 0)
+			{
+				logtc("Failed to initialize the signal semaphore (errno: %d)", errno);
+				return false;
+			}
 
 			::memset(g_ome_version, 0, sizeof(g_ome_version));
 			::strncpy(g_ome_version, info::OmeVersion::GetInstance()->ToString().CStr(), OV_COUNTOF(g_ome_version) - 1);
 
 			SetDumpFallbackPath(::ov_log_get_path());
 
-#ifdef OME_USE_JEMALLOC
-			bool use_jemalloc_signal = true;
-
-			if (SIG_JEMALLOC_TRIGGER_DUMP >= SIGRTMAX)
-			{
-				logtc("Cannot initialize SIGRT handler for jemalloc: `SIGRTMAX` is too small.");
-				use_jemalloc_signal = false;
-			}
-#endif	// OME_USE_JEMALLOC
-
-			return RegisterSignals(
+			return InitializeSignalMonitorThread() &&
+				   RegisterSignals(
 					   handlers::Abort,
 					   // Core dumped signal
-					   SIGABRT,	 // assert(), raise(), abort()
+					   SIGABRT,	 // `assert()`, `raise()`, `abort()`
 					   SIGSEGV,	 // illegal memory access
 					   SIGBUS,	 // illegal memory access
 					   SIGILL,	 // execute a malformed instruction.
@@ -403,25 +538,15 @@ namespace ov::sig
 					   SIGSYS,	 // bad system call
 					   SIGXCPU,	 // cpu time limit exceeded
 					   SIGXFSZ,	 // file size limit exceeded
-
-					   // Terminated signal
-					   SIGPIPE	// write on a pipe with no one to read it
 #if IS_LINUX
-					   ,
 					   SIGPOLL	// pollable event
-
-#endif	// IS_LINUX
+#endif							// IS_LINUX
 					   ) &&
-				   // WARNING: USE THIS SIGNAL FOR DEBUGGING PURPOSE ONLY
-				   RegisterSignals(handlers::SigUsr1, SIGUSR1) &&
-#ifdef OME_USE_JEMALLOC
-				   (use_jemalloc_signal
-						? RegisterSignals(handlers::SigRt, SIG_JEMALLOC_SHOW_STATS, SIG_JEMALLOC_TRIGGER_DUMP)
-						: true) &&
-#endif	// OME_USE_JEMALLOC
-				   RegisterSignals(handlers::SigHup, SIGHUP) &&
-				   RegisterSignals(handlers::SigTerm, SIGTERM) &&
-				   RegisterSignals(handlers::SigInt, SIGINT);
+
+				   // Ignore `SIGPIPE`
+				   RegisterSignals(
+					   nullptr,
+					   SIGPIPE);
 		}
 
 		void SetDumpFallbackPathInternal(const char *path)
@@ -453,5 +578,65 @@ namespace ov::sig
 	void SetDumpFallbackPath(const char *path)
 	{
 		SetDumpFallbackPathInternal(path);
+	}
+
+	bool WaitAndStop(int milliseconds)
+	{
+		if (g_need_to_stop.load())
+		{
+			return true;
+		}
+
+		struct timespec ts;
+
+		if (::clock_gettime(CLOCK_REALTIME, &ts) != 0)
+		{
+			OV_ASSERT2(false);
+
+			// Prevent busy-loop
+			::usleep(500 * 1000);
+
+			return g_need_to_stop.load();
+		}
+
+		ts.tv_sec += milliseconds / 1000;
+		ts.tv_nsec += (milliseconds % 1000) * 1000000;
+
+		if (ts.tv_nsec >= 1000000000)
+		{
+			ts.tv_sec++;
+			ts.tv_nsec -= 1000000000;
+		}
+
+		while (::sem_timedwait(&g_semaphore, &ts) == -1)
+		{
+			const auto error_number = errno;
+
+			if (error_number == EINTR)
+			{
+				if (g_need_to_stop.load())
+				{
+					return true;
+				}
+
+				// Interrupted by a signal while waiting.
+				// Retry because the absolute timeout in `ts` is still valid.
+				continue;
+			}
+
+			if (error_number == ETIMEDOUT)
+			{
+				// The wait interval elapsed without a semaphore post.
+				// Return the current stop state instead of unconditional `false`
+				// so this path remains consistent even in an abnormal race/fallback case.
+				break;
+			}
+
+			// Unexpected sem_timedwait() failure.
+			// Fall through and return the current stop state.
+			break;
+		}
+
+		return g_need_to_stop.load();
 	}
 }  // namespace ov::sig
