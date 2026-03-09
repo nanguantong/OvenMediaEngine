@@ -50,7 +50,6 @@ set(OME_PROJECT_CFLAGS
 set(OME_PROJECT_CXXFLAGS
     ${OME_PROJECT_CFLAGS}
     -DSPDLOG_COMPILED_LIB
-    -Wliteral-suffix
 )
 
 # Combined globals exposed to all targets
