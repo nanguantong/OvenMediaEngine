@@ -67,7 +67,7 @@ namespace ov
 	class ThreadChecker
 	{
 	public:
-		// Non-copyable, non-movable – the checker is tied to *this* object's
+		// Non-copyable, non-movable - the checker is tied to *this* object's
 		// lifetime and binding to one specific thread.
 		ThreadChecker(const ThreadChecker &)			= delete;
 		ThreadChecker &operator=(const ThreadChecker &) = delete;

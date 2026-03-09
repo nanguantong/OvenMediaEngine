@@ -48,7 +48,7 @@ function(ome_add_static_library target_name)
     )
     set(SRCS ${SELF_SRCS})
 
-    # Named subdirectories – non-recursive glob
+    # Named subdirectories - non-recursive glob
     foreach(dir ${ARG_SOURCES_DIRS})
         file(GLOB dir_srcs
             "${CMAKE_CURRENT_SOURCE_DIR}/${dir}/*.cpp"
@@ -57,7 +57,7 @@ function(ome_add_static_library target_name)
         list(APPEND SRCS ${dir_srcs})
     endforeach()
 
-    # Named subdirectories – recursive glob
+    # Named subdirectories - recursive glob
     foreach(dir ${ARG_SOURCES_DIRS_R})
         file(GLOB_RECURSE dir_srcs
             "${CMAKE_CURRENT_SOURCE_DIR}/${dir}/*.cpp"
@@ -83,7 +83,7 @@ function(ome_add_static_library target_name)
     # ── Library creation ──────────────────────────────────────────────────────
 
     if(NOT SRCS)
-        message(STATUS "[OME] No source files found for '${target_name}' in ${CMAKE_CURRENT_SOURCE_DIR} – creating INTERFACE library")
+        message(STATUS "[OME] No source files found for '${target_name}' in ${CMAKE_CURRENT_SOURCE_DIR} - creating INTERFACE library")
         add_library(${target_name} INTERFACE)
         target_include_directories(${target_name} INTERFACE
             ${OME_GLOBAL_INCLUDE_DIRS}

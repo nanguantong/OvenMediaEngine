@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 # ==============================================================================
-# Compiler selection – must be set BEFORE project() so CMake detects the
+# Compiler selection - must be set BEFORE project() so CMake detects the
 # right compiler ABI. Override with -DOME_USE_CLANG=OFF to use the system default.
 # ==============================================================================
 option(OME_USE_CLANG "Use Clang/Clang++ instead of the system default compiler" ON)
@@ -12,7 +12,7 @@ if(OME_USE_CLANG)
         set(CMAKE_C_COMPILER   "${_OME_CLANG}"   CACHE STRING "C compiler"   FORCE)
         set(CMAKE_CXX_COMPILER "${_OME_CLANGXX}" CACHE STRING "C++ compiler" FORCE)
     else()
-        message(WARNING "[OME] OME_USE_CLANG=ON but clang/clang++ not found – falling back to default compiler")
+        message(WARNING "[OME] OME_USE_CLANG=ON but clang/clang++ not found - falling back to default compiler")
     endif()
 endif()
 
@@ -46,9 +46,9 @@ set(OME_NILOGAN_XCODER_COMPILE_PATH "" CACHE PATH   "Path to xcoder_logan source
 option(OME_ENABLE_JEMALLOC          "Enable jemalloc memory allocator"                  OFF)
 option(OME_BUILD_STUBS              "Build GPU stub libraries"                           OFF)
 option(OME_SKIP_DEPENDENCY_CHECK    "Skip auto-install of missing/wrong-version packages" OFF)
-option(OME_SANITIZE_THREAD          "Enable ThreadSanitizer (TSan) – Debug only"         OFF)
+option(OME_SANITIZE_THREAD          "Enable ThreadSanitizer (TSan) - Debug only"         OFF)
 
-# Build type – normalize to canonical case (Debug/Release) so comparisons work
+# Build type - normalize to canonical case (Debug/Release) so comparisons work
 # regardless of how the user typed it (debug, DEBUG, release, RELEASE, etc.)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type (Debug/Release)" FORCE)

@@ -14,7 +14,7 @@ target_include_directories(jsoncpp PUBLIC
 target_compile_features(jsoncpp PUBLIC cxx_std_17)
 
 # ==============================================================================
-# pugixml  (bundled source – build from pugixml-1.9/src/pugixml.cpp)
+# pugixml  (bundled source - build from pugixml-1.9/src/pugixml.cpp)
 # ==============================================================================
 add_library(pugixml STATIC "pugixml-1.9/src/pugixml.cpp")
 target_include_directories(pugixml PUBLIC

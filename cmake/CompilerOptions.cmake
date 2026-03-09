@@ -15,7 +15,7 @@ set(EXTRA_FLAGS "")
 if(EXISTS /etc/os-release)
     file(READ /etc/os-release OS_RELEASE_CONTENT)
     if(OS_RELEASE_CONTENT MATCHES "ID=alpine")
-        message(STATUS "[OME] Alpine Linux detected – setting stack size to 1 MB")
+        message(STATUS "[OME] Alpine Linux detected - setting stack size to 1 MB")
         set(EXTRA_FLAGS "-Wl,-z,stack-size=1048576")
     endif()
 endif()
@@ -99,7 +99,7 @@ if(OSTYPE_VALUE STREQUAL "linux-musl")
 endif()
 
 # ------------------------------------------------------------------------------
-# RPATH setup – mirror CONFIG_LIBRARY_PATHS
+# RPATH setup - mirror CONFIG_LIBRARY_PATHS
 # ------------------------------------------------------------------------------
 set(OME_LIB_PATHS ${OME_DEP_PREFIX}/lib ${OME_DEP_PREFIX}/lib64)
 

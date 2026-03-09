@@ -56,9 +56,9 @@ macro(ome_find_pkg var pkg)
             endif()
         endif()
         if(OME_SKIP_DEPENDENCY_CHECK)
-            # Auto-install suppressed – report only
+            # Auto-install suppressed - report only
         elseif(_FP_REINSTALL_TARGET)
-            message(STATUS "[OME] '${pkg}' not found or wrong version – reinstalling '${_FP_REINSTALL_TARGET}' ...")
+            message(STATUS "[OME] '${pkg}' not found or wrong version - reinstalling '${_FP_REINSTALL_TARGET}' ...")
             execute_process(
                 COMMAND ${CMAKE_COMMAND}
                     -DPREFIX=${OME_DEP_PREFIX}
@@ -68,7 +68,7 @@ macro(ome_find_pkg var pkg)
                 RESULT_VARIABLE _install_result
             )
         elseif(NOT _FP_OPTIONAL)
-            message(STATUS "[OME] '${pkg}' not found – running InstallPrerequisites.cmake ...")
+            message(STATUS "[OME] '${pkg}' not found - running InstallPrerequisites.cmake ...")
             execute_process(
                 COMMAND ${CMAKE_COMMAND}
                     -DPREFIX=${OME_DEP_PREFIX}
@@ -92,7 +92,7 @@ macro(ome_find_pkg var pkg)
         message(FATAL_ERROR "[OME] Required package '${pkg}' still not found after install.\n"
             "  Run manually: cmake -P cmake/InstallPrerequisites.cmake")
     else()
-        message(STATUS "[OME] Optional package '${pkg}' NOT found – disabling")
+        message(STATUS "[OME] Optional package '${pkg}' NOT found - disabling")
     endif()
 
     unset(_FP_OPTIONAL)
@@ -128,7 +128,7 @@ if(OME_HWACCEL_NVIDIA)
     ome_find_pkg(PKG_FFNVCODEC ffnvcodec OPTIONAL)
     if(NOT PKG_FFNVCODEC_FOUND)
         # Auto-install nv-codec-headers with NVIDIA flag forwarded
-        message(STATUS "[OME] ffnvcodec not found – installing nv-codec-headers ...")
+        message(STATUS "[OME] ffnvcodec not found - installing nv-codec-headers ...")
         execute_process(
             COMMAND ${CMAKE_COMMAND}
                 -DPREFIX=${OME_DEP_PREFIX}
@@ -148,7 +148,7 @@ if(OME_HWACCEL_NVIDIA)
         link_directories(/usr/local/cuda/lib64 /usr/local/cuda/lib64/stubs)
         set(OME_NVIDIA_LIBS cuda cudart nvidia-ml)
     else()
-        message(WARNING "[OME] OME_HWACCEL_NVIDIA=ON but ffnvcodec still not found – disabling")
+        message(WARNING "[OME] OME_HWACCEL_NVIDIA=ON but ffnvcodec still not found - disabling")
         set(OME_HWACCEL_NVIDIA OFF)
     endif()
 endif()
@@ -191,24 +191,34 @@ if(OME_HWACCEL_NILOGAN)
     endif()
 endif()
 
-# jemalloc – required for Release builds, optional for Debug (can be forced with OME_ENABLE_JEMALLOC=ON)
+# jemalloc - required for Release builds, optional for Debug (can be forced with OME_ENABLE_JEMALLOC=ON)
 if(OME_ENABLE_JEMALLOC OR (CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT DEFINED OME_ENABLE_JEMALLOC))
     ome_find_pkg(PKG_JEMALLOC "jemalloc=${OME_VER_JEMALLOC}" REINSTALL_TARGET jemalloc)
     if(PKG_JEMALLOC_FOUND)
         message(STATUS "[OME] jemalloc: ENABLED")
         add_compile_definitions(OME_USE_JEMALLOC)
+
+        # Profiling support - only meaningful when jemalloc is active
+        if(OME_USE_JEMALLOC_PROFILE)
+            add_compile_definitions(OME_USE_JEMALLOC_PROFILE)
+            message(STATUS "[OME] jemalloc profiling: ENABLED")
+        endif()
+    endif()
+else()
+    if(OME_USE_JEMALLOC_PROFILE)
+        message(FATAL_ERROR "[OME] OME_USE_JEMALLOC_PROFILE=ON requires OME_ENABLE_JEMALLOC=ON")
     endif()
 endif()
 
-# libx264 – auto-detected by checking libx264.so presence alongside libavcodec.so
-# (mirrors the chk_dd_exist logic in main/AMS.mk; x264 is not directly linked –
+# libx264 - auto-detected by checking libx264.so presence alongside libavcodec.so
+# (mirrors the chk_dd_exist logic in main/AMS.mk; x264 is not directly linked -
 #  FFmpeg's libavcodec uses it internally when compiled with --enable-libx264)
 find_library(X264_LIB x264 HINTS ${OME_DEP_PREFIX}/lib)
 if(X264_LIB)
-    message(STATUS "[OME] libx264: found (${X264_LIB}) – enabling THIRDP_LIBX264_ENABLED")
+    message(STATUS "[OME] libx264: found (${X264_LIB}) - enabling THIRDP_LIBX264_ENABLED")
     add_compile_definitions(THIRDP_LIBX264_ENABLED)
 else()
-    message(STATUS "[OME] libx264: not found – x264 encoder disabled")
+    message(STATUS "[OME] libx264: not found - x264 encoder disabled")
 endif()
 
 # uuid (system library, not pkg-config)

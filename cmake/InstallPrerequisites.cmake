@@ -61,7 +61,7 @@ if(NOT DEFINED OME_USE_CLANG)
     set(OME_USE_CLANG ON)
 endif()
 
-# Library versions – defined in a shared file so Dependencies.cmake can use the same values.
+# Library versions - defined in a shared file so Dependencies.cmake can use the same values.
 include("${CMAKE_CURRENT_LIST_DIR}/Versions.cmake")
 set(OPENSSL_VERSION     ${OME_VER_OPENSSL})
 set(SRTP_VERSION        ${OME_VER_SRTP})
@@ -159,7 +159,7 @@ if(OME_USE_CLANG)
         message(WARNING "[OME Prerequisites] Unsupported OS: ${OSNAME}. Skipping clang installation.")
     endif()
 else()
-    message(STATUS "[OME Prerequisites] OME_USE_CLANG=OFF – skipping clang installation")
+    message(STATUS "[OME Prerequisites] OME_USE_CLANG=OFF - skipping clang installation")
 endif()
 
 # ==============================================================================
