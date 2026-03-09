@@ -568,6 +568,12 @@ namespace mon
 		stream_metric->OnSessionsDisconnected(type, number_of_sessions);
 	}
 
+	std::shared_ptr<alrt::Alert> Monitoring::GetAlert()
+	{
+		std::shared_lock<std::shared_mutex> lock(_alert_guard);
+		return _alert;
+	}
+
 	void Monitoring::SendStreamAlertMessage(alrt::Message::Code code, const std::shared_ptr<StreamMetrics> &stream_metric, const std::shared_ptr<StreamMetrics> &parent_stream_metric, const std::shared_ptr<alrt::ExtraData> &extra)
 	{
 		std::shared_lock<std::shared_mutex> lock(_alert_guard);
