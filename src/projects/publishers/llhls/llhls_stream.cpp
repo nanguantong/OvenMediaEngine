@@ -1744,10 +1744,8 @@ bool LLHlsStream::CheckPlaylistReady()
 
 	_playlist_ready = true;
 
-	auto alert = MonitorInstance->GetAlert();
 	auto stream_metrics = StreamMetrics(*std::static_pointer_cast<info::Stream>(pub::Stream::GetSharedPtr()));
-
-	alert->SendStreamMessage(mon::alrt::Message::Code::EGRESS_LLHLS_READY, stream_metrics);
+	MonitorInstance->SendStreamAlertMessage(mon::alrt::Message::Code::EGRESS_LLHLS_READY, stream_metrics);
 
 	// Dump master playlist if configured
 	DumpMasterPlaylistsOfAllItems();

@@ -57,12 +57,15 @@ namespace mon
 		void OnQueueDeleted(const info::ManagedQueue &queue_info);
 		void OnQueueUpdated(const info::ManagedQueue &queue_info, bool with_metadata = false);
 
-		std::shared_ptr<alrt::Alert> GetAlert();
+		// Alert proxy methods (thread-safe)
+		void SendStreamAlertMessage(alrt::Message::Code code, const std::shared_ptr<StreamMetrics> &stream_metric, const std::shared_ptr<StreamMetrics> &parent_stream_metric, const std::shared_ptr<alrt::ExtraData> &extra);
+		void SendStreamAlertMessage(alrt::Message::Code code, const std::shared_ptr<StreamMetrics> &stream_metric);
 
 	private:
 		ov::DelayQueue _timer{"MonLogTimer"};
 		mutable std::shared_mutex _server_metric_guard;
 		std::shared_ptr<ServerMetrics> _server_metric = nullptr;
+		mutable std::shared_mutex _alert_guard;
 		std::shared_ptr<alrt::Alert> _alert = nullptr;
 	};
 }  // namespace mon
