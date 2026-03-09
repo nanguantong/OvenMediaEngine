@@ -60,6 +60,9 @@ endif()
 if(NOT DEFINED OME_USE_CLANG)
     set(OME_USE_CLANG ON)
 endif()
+if(NOT DEFINED ENABLE_JEMALLOC_PROF)
+    set(ENABLE_JEMALLOC_PROF OFF)
+endif()
 
 # Library versions - defined in a shared file so Dependencies.cmake can use the same values.
 include("${CMAKE_CURRENT_LIST_DIR}/Versions.cmake")
@@ -368,10 +371,15 @@ sudo cmake --install ${_STUB_DIR}/build/stubs --component stubs
 ")
 
 # ---- jemalloc ----
+if(ENABLE_JEMALLOC_PROF)
+    set(_JEMALLOC_PROF_FLAG "--enable-prof")
+else()
+    set(_JEMALLOC_PROF_FLAG "")
+endif()
 set(_install_jemalloc "
 mkdir -p ${TEMP_PATH}/jemalloc && cd ${TEMP_PATH}/jemalloc &&
 curl -sSLf https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VERSION}/jemalloc-${JEMALLOC_VERSION}.tar.bz2 | tar -jx --strip-components=1 &&
-./configure --prefix=${PREFIX} --enable-shared &&
+./configure --prefix=${PREFIX} --enable-shared ${_JEMALLOC_PROF_FLAG} &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/jemalloc
 ")
 

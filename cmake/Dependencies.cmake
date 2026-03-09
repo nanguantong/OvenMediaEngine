@@ -21,7 +21,7 @@ find_package(PkgConfig REQUIRED)
 # If not found or version differs, re-runs InstallPrerequisites for the
 # specific REINSTALL_TARGET only (or the full prerequisites if not specified).
 macro(ome_find_pkg var pkg)
-    cmake_parse_arguments(_FP "OPTIONAL" "REINSTALL_TARGET" "" ${ARGN})
+    cmake_parse_arguments(_FP "OPTIONAL" "REINSTALL_TARGET" "EXTRA_ARGS" ${ARGN})
 
     # Always clear cached result so pkg-config re-runs every configure.
     # This ensures a deleted/changed OME_DEP_PREFIX is detected immediately
@@ -64,6 +64,7 @@ macro(ome_find_pkg var pkg)
                     -DPREFIX=${OME_DEP_PREFIX}
                     -DTARGET=${_FP_REINSTALL_TARGET}
                     ${_FP_HWACCEL_ARGS}
+                    ${_FP_EXTRA_ARGS}
                     -P "${CMAKE_SOURCE_DIR}/cmake/InstallPrerequisites.cmake"
                 RESULT_VARIABLE _install_result
             )
@@ -73,6 +74,7 @@ macro(ome_find_pkg var pkg)
                 COMMAND ${CMAKE_COMMAND}
                     -DPREFIX=${OME_DEP_PREFIX}
                     ${_FP_HWACCEL_ARGS}
+                    ${_FP_EXTRA_ARGS}
                     -P "${CMAKE_SOURCE_DIR}/cmake/InstallPrerequisites.cmake"
                 RESULT_VARIABLE _install_result
             )
@@ -192,8 +194,10 @@ if(OME_HWACCEL_NILOGAN)
 endif()
 
 # jemalloc - required for Release builds, optional for Debug (can be forced with OME_ENABLE_JEMALLOC=ON)
+# Note: when built with --enable-prof, jemalloc reports its pkg-config version as "<ver>_0"
+# (e.g. "5.3.0_0"), so we use >= instead of = to avoid a false version mismatch.
 if(OME_ENABLE_JEMALLOC OR (CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT DEFINED OME_ENABLE_JEMALLOC))
-    ome_find_pkg(PKG_JEMALLOC "jemalloc=${OME_VER_JEMALLOC}" REINSTALL_TARGET jemalloc)
+    ome_find_pkg(PKG_JEMALLOC "jemalloc>=${OME_VER_JEMALLOC}" REINSTALL_TARGET jemalloc EXTRA_ARGS -DENABLE_JEMALLOC_PROF=${OME_USE_JEMALLOC_PROFILE})
     if(PKG_JEMALLOC_FOUND)
         message(STATUS "[OME] jemalloc: ENABLED")
         add_compile_definitions(OME_USE_JEMALLOC)
