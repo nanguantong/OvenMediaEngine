@@ -20,7 +20,6 @@ namespace mon
 		{
 			to_release->Release();
 		}
-		_forwarder.Stop();
 
 		if (_alert != nullptr)
 		{
@@ -107,12 +106,6 @@ namespace mon
 		}
 	}
 
-	void Monitoring::SetLogPath(const ov::String &log_path)
-	{
-		_logger.SetLogPath(log_path);
-		_forwarder.SetLogPath(log_path);
-	}
-
 	void Monitoring::OnServerStarted(const std::shared_ptr<const cfg::Server> &server_config)
 	{
 		{
@@ -126,37 +119,12 @@ namespace mon
 			return;
 		}
 
-		_is_analytics_on = server_metric->GetConfig()->GetAnalytics().IsParsed();
-
 		_alert			 = std::make_shared<alrt::Alert>();
 		_alert->Start(server_config);
 
 		logti("%s(%s) ServerMetric has been started for monitoring - %s",
 			  server_config->GetName().CStr(), server_config->GetID().CStr(),
 			  ov::Converter::ToISO8601String(server_metric->GetServerStartedTime()).CStr());
-
-		if (IsAnalyticsOn())
-		{
-			auto event = Event(EventType::ServerStarted, server_metric);
-			_logger.Write(event);
-
-			_timer.Push(
-				[this](void *parameter) -> ov::DelayQueueAction {
-					auto server_metric = GetServerMetrics();
-					if (server_metric == nullptr)
-					{
-						return ov::DelayQueueAction::Stop;
-					}
-					auto event = Event(EventType::ServerStat, server_metric);
-					_logger.Write(event);
-					return ov::DelayQueueAction::Repeat;
-				},
-				5000);
-
-			_timer.Start();
-
-			_forwarder.Start(server_config);
-		}
 	}
 
 	bool Monitoring::OnHostCreated(const info::Host &host_info)
@@ -170,14 +138,6 @@ namespace mon
 		if (server_metric->OnHostCreated(host_info) == false)
 		{
 			return false;
-		}
-
-		if (IsAnalyticsOn())
-		{
-			auto host_metrics = server_metric->GetHostMetrics(host_info);
-			auto event		  = Event(EventType::HostCreated, server_metric);
-			event.SetExtraMetric(host_metrics);
-			_logger.Write(event);
 		}
 
 		return true;
@@ -194,14 +154,6 @@ namespace mon
 		if (server_metric->OnHostDeleted(host_info) == false)
 		{
 			return false;
-		}
-
-		if (IsAnalyticsOn())
-		{
-			auto host_metrics = server_metric->GetHostMetrics(host_info);
-			auto event		  = Event(EventType::HostDeleted, server_metric);
-			event.SetExtraMetric(host_metrics);
-			_logger.Write(event);
 		}
 
 		return true;
@@ -232,13 +184,6 @@ namespace mon
 			return false;
 		}
 
-		if (IsAnalyticsOn())
-		{
-			auto event = Event(EventType::AppCreated, server_metric);
-			event.SetExtraMetric(app_metrics);
-			_logger.Write(event);
-		}
-
 		return true;
 	}
 	bool Monitoring::OnApplicationDeleted(const info::Application &app_info)
@@ -265,13 +210,6 @@ namespace mon
 			return false;
 		}
 
-		if (IsAnalyticsOn())
-		{
-			auto event = Event(EventType::AppDeleted, server_metric);
-			event.SetExtraMetric(app_metrics);
-			_logger.Write(event);
-		}
-
 		return true;
 	}
 	bool Monitoring::OnStreamCreated(const info::Stream &stream)
@@ -289,10 +227,8 @@ namespace mon
 
 		// Writes events only based on the input stream.
 		std::shared_ptr<StreamMetrics> stream_metrics = nullptr;
-		EventType event_type						  = EventType::StreamCreated;
 		if (stream.IsInputStream())
 		{
-			event_type	   = EventType::StreamCreated;
 			stream_metrics = app_metrics->GetStreamMetrics(stream);
 			if (stream_metrics == nullptr)
 			{
@@ -304,8 +240,6 @@ namespace mon
 		// Output stream created
 		else
 		{
-			event_type	   = EventType::StreamOutputsUpdated;
-
 			// Get Input Stream
 			stream_metrics = app_metrics->GetStreamMetrics(*stream.GetLinkedInputStream());
 			if (stream_metrics == nullptr)
@@ -322,17 +256,6 @@ namespace mon
 			stream_metrics->LinkOutputStreamMetrics(output_stream_metric);
 
 			_alert->SendStreamMessage(alrt::Message::Code::EGRESS_STREAM_CREATED, output_stream_metric);
-		}
-
-		if (IsAnalyticsOn())
-		{
-			auto server_metric = GetServerMetrics();
-			if (server_metric != nullptr)
-			{
-				auto event = Event(event_type, server_metric);
-				event.SetExtraMetric(stream_metrics);
-				_logger.Write(event);
-			}
 		}
 
 		return true;
@@ -447,20 +370,6 @@ namespace mon
 			if (app_metrics->OnStreamDeleted(stream) == false)
 			{
 				return false;
-			}
-		}
-
-		if (IsAnalyticsOn())
-		{
-			if (stream_metrics->IsInputStream())
-			{
-				auto server_metric = GetServerMetrics();
-				if (server_metric != nullptr)
-				{
-					auto event = Event(EventType::StreamDeleted, server_metric);
-					event.SetExtraMetric(stream_metrics);
-					_logger.Write(event);
-				}
 			}
 		}
 

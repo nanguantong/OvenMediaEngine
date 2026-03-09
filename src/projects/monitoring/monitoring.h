@@ -7,11 +7,7 @@
 #include "./alert/alert.h"
 #include "base/info/info.h"
 #include "base/ovlibrary/delay_queue.h"
-#include "event_forwarder.h"
-#include "event_logger.h"
 #include "server_metrics.h"
-
-#include <shared_mutex>
 
 #define MonitorInstance mon::Monitoring::GetInstance()
 #define HostMetrics(info) mon::Monitoring::GetInstance()->GetHostMetrics(info);
@@ -30,13 +26,6 @@ namespace mon
 		}
 
 		void Release();
-
-		void SetLogPath(const ov::String &log_path);
-
-		bool IsAnalyticsOn()
-		{
-			return _is_analytics_on;
-		}
 
 		std::shared_ptr<ServerMetrics> GetServerMetrics();
 		std::map<uint32_t, std::shared_ptr<HostMetrics>> GetHostMetricsList();
@@ -74,9 +63,6 @@ namespace mon
 		ov::DelayQueue _timer{"MonLogTimer"};
 		mutable std::shared_mutex _server_metric_guard;
 		std::shared_ptr<ServerMetrics> _server_metric = nullptr;
-		EventLogger _logger;
-		EventForwarder _forwarder;
 		std::shared_ptr<alrt::Alert> _alert = nullptr;
-		bool _is_analytics_on				= false;
 	};
 }  // namespace mon
