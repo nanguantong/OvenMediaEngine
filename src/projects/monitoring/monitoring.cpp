@@ -94,22 +94,7 @@ namespace mon
 			return nullptr;
 		}
 
-		if (stream.IsInputStream())
-		{
-			auto stream_metric = app_metric->GetStreamMetrics(stream);
-			return stream_metric;
-		}
-		else
-		{
-			auto stream_metric = app_metric->GetStreamMetrics(stream);
-			if (stream_metric == nullptr)
-			{
-				return nullptr;
-			}
-
-			auto output_stream_metric = app_metric->GetStreamMetrics(stream);
-			return output_stream_metric;
-		}
+		return app_metric->GetStreamMetrics(stream);
 	}
 
 	void Monitoring::OnServerStarted(const std::shared_ptr<const cfg::Server> &server_config)
