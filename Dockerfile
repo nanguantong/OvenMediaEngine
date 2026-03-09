@@ -37,7 +37,7 @@
 # Base Image Selection
 ARG     USE_GPU
 FROM    ubuntu:22.04 AS base
-FROM    nvidia/cuda:12.0.0-devel-ubuntu22.04 AS base_gpu
+FROM    nvidia/cuda:12.0.1-devel-ubuntu22.04 AS base_gpu
 FROM    base${USE_GPU:+_gpu} AS base_build
 
 ## Install Libraries 
@@ -113,7 +113,7 @@ ENTRYPOINT ["tail", "-f", "/dev/null"]
 ###########################################################################################################
 ARG     USE_GPU
 FROM    ubuntu:22.04 AS release_base
-FROM    nvidia/cuda:12.0.0-runtime-ubuntu22.04 AS release_base_gpu
+FROM    nvidia/cuda:12.0.1-runtime-ubuntu22.04 AS release_base_gpu
 FROM    release_base${USE_GPU:+_gpu} AS release
 
 ## Install libraries by package
