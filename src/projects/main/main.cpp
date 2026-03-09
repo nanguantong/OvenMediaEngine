@@ -62,6 +62,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	ov::ThreadChecker::InitMainThread();
+
 	PrintBanner();
 	CheckKernelVersion();
 
@@ -169,7 +171,7 @@ int main(int argc, char *argv[])
 				}
 
 				while (ov::sig::WaitAndStop(1000) == false)
- 				{
+				{
 				}
 			}
 		}
