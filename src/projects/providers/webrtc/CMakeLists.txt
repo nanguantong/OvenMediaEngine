@@ -1,0 +1,16 @@
+ome_add_static_library(webrtc_provider
+    DEPS
+        base_provider
+        access_controller
+        bitstream
+        dtls_srtp
+        http
+        ice
+        rtc_signalling
+        rtp_rtcp
+        sdp
+        whip
+        orchestrator
+        ovcrypto
+        ovlibrary
+)

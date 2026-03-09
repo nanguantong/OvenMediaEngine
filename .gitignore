@@ -5,6 +5,7 @@
 bin
 intermediates
 logs
+build
 
 # Ignore pugixml's build directory
 src/projects/third_party/pugixml-1.9/scripts/gmake

@@ -1,0 +1,9 @@
+ome_add_static_library(thumbnail_publisher
+    DEPS
+        base_publisher
+        http
+        ovt_packetizer
+        monitoring
+        orchestrator
+        ovlibrary
+)

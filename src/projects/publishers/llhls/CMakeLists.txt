@@ -1,0 +1,11 @@
+ome_add_static_library(llhls_publisher
+    DEPS
+        base_publisher
+        bmff_container
+        webvtt_packager
+        access_controller
+        dump
+        http
+        monitoring
+        ovlibrary
+)

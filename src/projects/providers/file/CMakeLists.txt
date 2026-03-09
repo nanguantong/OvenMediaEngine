@@ -1,0 +1,10 @@
+ome_add_static_library(file_provider
+    DEPS
+        base_provider
+        ffmpeg_wrapper
+        rtp_rtcp
+        rtsp_module
+        sdp
+        orchestrator
+        ovlibrary
+)

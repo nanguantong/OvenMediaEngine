@@ -1,0 +1,13 @@
+ome_add_static_library(http
+    SOURCES_DIRS_R
+        server
+        client
+        protocol
+        cors
+        hpack
+    DEPS
+        ovsocket
+        physical_port
+        ovcrypto
+        ovlibrary
+)

@@ -1,0 +1,9 @@
+ome_add_static_library(rtspc_provider
+    DEPS
+        base_provider
+        rtp_rtcp
+        rtsp_module
+        sdp
+        orchestrator
+        ovlibrary
+)

@@ -1,0 +1,9 @@
+ome_add_static_library(ovt_provider
+    DEPS
+        base_provider
+        bitstream
+        ovt_packetizer
+        monitoring
+        orchestrator
+        ovlibrary
+)
