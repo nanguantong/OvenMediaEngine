@@ -37,6 +37,11 @@ set(OME_COMMON_FLAGS
     ${EXTRA_FLAGS}
 )
 
+# Enable colored diagnostics only when the terminal supports it
+if((DEFINED ENV{COLORTERM}) OR (DEFINED ENV{TERM} AND NOT "$ENV{TERM}" STREQUAL "dumb"))
+    list(APPEND OME_COMMON_FLAGS -fdiagnostics-color=always)
+endif()
+
 set(OME_CFLAGS_COMMON   ${OME_COMMON_FLAGS})
 set(OME_CXXFLAGS_COMMON ${OME_COMMON_FLAGS})
 
