@@ -34,10 +34,10 @@ namespace ov
 		int line;
 		const char *func;
 
-		ThreadLocation(
+		constexpr ThreadLocation(
 			const char *file = __builtin_FILE(),
 			int line		 = __builtin_LINE(),
-			const char *func = __builtin_FUNCTION())
+			const char *func = __builtin_FUNCTION()) noexcept
 			: file(file), line(line), func(func)
 		{
 		}
