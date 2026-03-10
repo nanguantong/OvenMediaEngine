@@ -14,12 +14,16 @@ add_compile_definitions(
 )
 
 # ==============================================================================
-# External pkg-config modules pre-imported here so every sub-directory can
-# reference them via PkgConfig::<VAR>.  The canonical variable names follow
-# the pattern established in cmake/Dependencies.cmake.
+# git_info.h generation
 # ==============================================================================
-# (All pkg_check_modules calls live in cmake/Dependencies.cmake which is
-#  included from the root CMakeLists.txt before this file is processed.)
+set(OME_GIT_INFO_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/main/update_git_info.sh")
+
+add_custom_target(ome_git_info ALL
+    COMMAND bash "${OME_GIT_INFO_SCRIPT}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/main"
+    COMMENT "[OME] Updating git_info.h"
+    VERBATIM
+)
 
 # ==============================================================================
 # Subdirectories (order follows the static library dependency graph)

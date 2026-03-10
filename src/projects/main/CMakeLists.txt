@@ -4,19 +4,8 @@
 # Mirrors the role of projects/main/AMS.mk.
 #
 
-# ==============================================================================
-# Generate git_info.h (runs update_git_info.sh at configure time)
-# ==============================================================================
-set(GIT_INFO_H "${CMAKE_CURRENT_SOURCE_DIR}/git_info.h")
-
-add_custom_command(
-    OUTPUT  ${GIT_INFO_H}
-    COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/update_git_info.sh"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    COMMENT "[OME] Generating git_info.h"
-    VERBATIM
-)
-add_custom_target(ome_git_info DEPENDS ${GIT_INFO_H})
+# ome_git_info target is defined in the parent CMakeLists.txt (projects/)
+# and runs before all subdirectories are processed.
 
 # ==============================================================================
 # Executable sources
@@ -117,8 +106,3 @@ endif()
 # ==============================================================================
 set(OME_INSTALL_DIR /usr/share/ovenmediaengine)
 install(TARGETS OvenMediaEngine RUNTIME DESTINATION ${OME_INSTALL_DIR})
-install(FILES "${GIT_INFO_H}" DESTINATION ${OME_INSTALL_DIR}/include OPTIONAL)
-
-set_property(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" PROPERTY
-    ADDITIONAL_CLEAN_FILES "${GIT_INFO_H}"
-)
