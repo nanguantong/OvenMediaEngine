@@ -168,18 +168,6 @@ select_equal_or_nearest_higher_version() {
     echo "${nearest_version}"
 }
 
-log_selected_version() {
-    local label="$1"
-    local requested="$2"
-    local selected="$3"
-
-    if [[ "${selected}" == "${requested}" ]]; then
-        log "Using ${label}: ${selected}"
-    else
-        log "Requested ${label} ${requested}; using ${selected}"
-    fi
-}
-
 find_nearest_higher_nvidia_driver_ubuntu() {
     local current_version="$1"
 
@@ -308,9 +296,6 @@ resolve_target_versions_ubuntu() {
     target_cuda_toolkit_package="$(find_nearest_higher_cuda_toolkit_ubuntu "${CUDA_TOOLKIT_PACKAGE}")" || \
         die "Requested cuda-toolkit-${CUDA_TOOLKIT_PACKAGE} is unavailable and no equal/higher version was found."
 
-    log_selected_version "nvidia-driver" "${NVIDIA_DRIVER_VERSION}" "${target_nvidia_version}"
-    log_selected_version "cuda-toolkit" "${CUDA_TOOLKIT_PACKAGE}" "${target_cuda_toolkit_package}"
-
     echo "${target_nvidia_version};${target_cuda_toolkit_package}"
 }
 
@@ -319,13 +304,10 @@ resolve_target_versions_rocky() {
     local target_cuda_toolkit_package
 
     target_nvidia_version="$(find_nearest_higher_nvidia_driver_rocky "${NVIDIA_DRIVER_VERSION}")" || \
-        die "Requested nvidia-driver stream ${NVIDIA_DRIVER_VERSION} is unavailable and no equal/higher stream was found."
+        die "Requested nvidia-driver-${NVIDIA_DRIVER_VERSION} is unavailable and no equal/higher version was found."
 
     target_cuda_toolkit_package="$(find_nearest_higher_cuda_toolkit_rocky "${CUDA_TOOLKIT_PACKAGE}")" || \
         die "Requested cuda-toolkit-${CUDA_TOOLKIT_PACKAGE} is unavailable and no equal/higher version was found."
-
-    log_selected_version "nvidia-driver stream" "${NVIDIA_DRIVER_VERSION}" "${target_nvidia_version}"
-    log_selected_version "cuda-toolkit" "${CUDA_TOOLKIT_PACKAGE}" "${target_cuda_toolkit_package}"
 
     echo "${target_nvidia_version};${target_cuda_toolkit_package}"
 }
@@ -349,13 +331,16 @@ install_ubuntu() {
     # Uninstalling a previously installed NVIDIA Driver
     remove_existing_packages_ubuntu
 
-    # Registering the NVIDIA repository
+    Registering the NVIDIA repository
     register_repository_ubuntu
 
     local selected_versions
     selected_versions="$(resolve_target_versions_ubuntu)"
     local target_nvidia_version="${selected_versions%%;*}"
     local target_cuda_toolkit_package="${selected_versions##*;}"
+
+    log "Selected NVIDIA driver version: ${target_nvidia_version}"
+    log "Selected CUDA toolkit package: ${target_cuda_toolkit_package}"
 
     # Installing the NVIDIA driver and CUDA toolkit packages
     run apt-get install -y --no-install-recommends "nvidia-driver-${target_nvidia_version}"
@@ -382,6 +367,9 @@ install_rocky() {
     selected_versions="$(resolve_target_versions_rocky)"
     local target_nvidia_version="${selected_versions%%;*}"
     local target_cuda_toolkit_package="${selected_versions##*;}"
+
+    log "Selected NVIDIA driver version: ${target_nvidia_version}"
+    log "Selected CUDA toolkit package: ${target_cuda_toolkit_package}"
 
     # Installing the NVIDIA driver and CUDA toolkit packages
     run dnf module install -y "nvidia-driver:${target_nvidia_version}"
