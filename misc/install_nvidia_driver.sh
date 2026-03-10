@@ -331,7 +331,7 @@ install_ubuntu() {
     # Uninstalling a previously installed NVIDIA Driver
     remove_existing_packages_ubuntu
 
-    Registering the NVIDIA repository
+    # Registering the NVIDIA repository
     register_repository_ubuntu
 
     local selected_versions
