@@ -67,6 +67,11 @@ function(ome_add_static_library target_name)
     endforeach()
 
     # ── Exclusion filter ──────────────────────────────────────────────────────
+    # Always exclude *_test.cpp files from production library sources.
+    # Test files live alongside source (co-location pattern) but are compiled
+    # only by the test targets defined inside each module's CMakeLists.txt.
+    list(APPEND ARG_EXCLUDE "*_test.cpp")
+
     # Convert each glob-style pattern (filename only) to a regex and remove
     # matching files from the list.  Patterns are matched against the filename
     # component only (not the full path), so "test_*.cpp" or "*_test.cpp" work
@@ -147,4 +152,130 @@ function(ome_target_pkg_config target scope)
 
         target_link_libraries(${target} ${scope} PkgConfig::${var})
     endforeach()
+endfunction()
+
+# ------------------------------------------------------------------------------
+# ome_add_tests(target
+#     SRCS      file1 file2 ...  # absolute paths to *_test.cpp files to compile
+#     EXT_LIBS  lib1 lib2 ...   # external/pkg-config/system libs
+# )
+#
+# Creates a per-module test binary named <target> and registers it with ctest.
+# A ctest label is automatically derived from the target name by stripping the
+# leading "ome_test_" / "ome_tests_" prefix (e.g. ome_test_ovlibrary → ovlibrary).
+# This allows filtering tests by module:
+#
+#   ctest --test-dir build/Debug -L ovlibrary
+#
+# Typical usage inside a module's CMakeLists.txt:
+#
+#   if(OME_BUILD_TESTS)
+#       file(GLOB _srcs "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
+#       ome_add_tests(ome_test_mymodule
+#           SRCS ${_srcs}
+#           EXT_LIBS pthread)
+#   endif()
+#
+# Target creation is DEFERRED to the end of the root CMakeLists.txt so that
+# OME_STATIC_LIBS is fully populated before LINK_GROUP:RESCAN is evaluated.
+# ------------------------------------------------------------------------------
+function(ome_add_tests target)
+    cmake_parse_arguments(ARG "" "" "SRCS;EXT_LIBS" ${ARGN})
+
+    if(NOT ARG_SRCS)
+        message(STATUS "[OME Test] No source files given for '${target}' - skipping")
+        return()
+    endif()
+
+    set_property(GLOBAL APPEND PROPERTY OME_PENDING_TESTS "${target}")
+    foreach(_src ${ARG_SRCS})
+        set_property(GLOBAL APPEND PROPERTY "OME_TEST_SRCS__${target}" "${_src}")
+    endforeach()
+    foreach(_lib ${ARG_EXT_LIBS})
+        set_property(GLOBAL APPEND PROPERTY "OME_TEST_EXTLIBS__${target}" "${_lib}")
+    endforeach()
+
+    # Schedule creation exactly once.
+    get_property(_scheduled GLOBAL PROPERTY OME_TESTS_SCHEDULED)
+    if(NOT _scheduled)
+        set_property(GLOBAL PROPERTY OME_TESTS_SCHEDULED TRUE)
+        cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
+            CALL _ome_create_all_registered_tests)
+    endif()
+endfunction()
+
+# Internal: called exactly once, deferred to after all src/ subdirs are done.
+function(_ome_create_all_registered_tests)
+    get_property(_targets GLOBAL PROPERTY OME_PENDING_TESTS)
+    foreach(_target ${_targets})
+        if(NOT TARGET ${_target})
+            _ome_materialize_test("${_target}")
+        endif()
+    endforeach()
+
+    if(_targets)
+        add_custom_target(tests DEPENDS ${_targets})
+    endif()
+endfunction()
+
+# Internal: creates one test executable target with a ctest label.
+function(_ome_materialize_test target)
+    get_property(_srcs    GLOBAL PROPERTY "OME_TEST_SRCS__${target}")
+    get_property(_extlibs GLOBAL PROPERTY "OME_TEST_EXTLIBS__${target}")
+
+    if(NOT _srcs)
+        message(WARNING "[OME Test] No SRCS for '${target}' - skipping")
+        return()
+    endif()
+
+    # Prepend common pool so every test binary gets the same base set of
+    # external libraries without each module having to repeat them.
+    get_property(_common_libs GLOBAL PROPERTY OME_COMMON_TEST_EXT_LIBS)
+    if(_common_libs)
+        list(PREPEND _extlibs ${_common_libs})
+    endif()
+
+    # Deduplicate (multiple modules registering same target may repeat libs).
+    if(_extlibs)
+        list(REMOVE_DUPLICATES _extlibs)
+    endif()
+
+    # Derive label: strip leading "ome_test_" or "ome_tests_" prefix.
+    string(REGEX REPLACE "^ome_tests?_" "" _label "${target}")
+
+    add_executable(${target} ${_srcs})
+
+    target_include_directories(${target} PRIVATE ${OME_GLOBAL_INCLUDE_DIRS})
+    target_compile_features(${target} PRIVATE cxx_std_17)
+    target_compile_options(${target} PRIVATE ${OME_GLOBAL_CFLAGS})
+    target_compile_definitions(${target} PRIVATE
+        __STDC_CONSTANT_MACROS
+        SPDLOG_COMPILED_LIB
+    )
+
+    get_property(_all_libs GLOBAL PROPERTY OME_STATIC_LIBS)
+    set(_real_libs)
+    foreach(_lib ${_all_libs})
+        get_target_property(_is_iface ${_lib} OME_HEADER_ONLY)
+        if(NOT _is_iface)
+            list(APPEND _real_libs ${_lib})
+        endif()
+    endforeach()
+
+    if(_real_libs)
+        target_link_libraries(${target} PRIVATE
+            "$<LINK_GROUP:RESCAN,${_real_libs}>"
+        )
+    endif()
+
+    target_link_libraries(${target} PRIVATE
+        GTest::gtest_main
+        GTest::gmock
+        ${_extlibs}
+    )
+
+    gtest_discover_tests(${target}
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        PROPERTIES TIMEOUT 60 LABELS "${_label}"
+    )
 endfunction()

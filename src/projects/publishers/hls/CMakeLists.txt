@@ -9,3 +9,10 @@ ome_add_static_library(hls_publisher
         monitoring
         ovlibrary
 )
+
+if(OME_BUILD_TESTS)
+    file(GLOB _srcs "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
+    ome_add_tests(ome_test_publishers_hls
+        SRCS ${_srcs}
+    )
+endif()

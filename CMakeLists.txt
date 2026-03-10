@@ -47,6 +47,7 @@ option(OME_ENABLE_JEMALLOC          "Enable jemalloc memory allocator"          
 option(OME_BUILD_STUBS              "Build GPU stub libraries"                           OFF)
 option(OME_SKIP_DEPENDENCY_CHECK    "Skip auto-install of missing/wrong-version packages" OFF)
 option(OME_SANITIZE_THREAD          "Enable ThreadSanitizer (TSan) - Debug only"         OFF)
+option(OME_BUILD_TESTS              "Build unit tests (requires GTest)"                  OFF)
 
 # Build type - normalize to canonical case (Debug/Release) so comparisons work
 # regardless of how the user typed it (debug, DEBUG, release, RELEASE, etc.)
@@ -76,6 +77,52 @@ include(Dependencies)
 # ==============================================================================
 # Subdirectories
 # ==============================================================================
+
+# ---------------------------------------------------------------------------
+# GTest / GMock setup — must come BEFORE add_subdirectory(src) so that the
+# GTest::gtest_main / GTest::gmock targets are available when source-level
+# CMakeLists.txt files define their own test executables.
+# ---------------------------------------------------------------------------
+if(OME_BUILD_TESTS)
+    enable_testing()
+    include(GoogleTest)
+    include(FetchContent)
+    # Always fetch a pinned version — do not use the system GTest so that the
+    # version is consistent across all build environments.
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        v1.14.0
+        GIT_SHALLOW    TRUE
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    set(BUILD_GMOCK ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+
+    # Common external libraries linked into every test binary automatically.
+    # Mirrors the system/pkg-config libs in src/projects/main/CMakeLists.txt.
+    # Individual modules do NOT need to specify EXT_LIBS unless they need extras.
+    set_property(GLOBAL PROPERTY OME_COMMON_TEST_EXT_LIBS
+        PkgConfig::PKG_SRT
+        PkgConfig::PKG_LIBAVFORMAT
+        PkgConfig::PKG_LIBAVFILTER
+        PkgConfig::PKG_LIBAVCODEC
+        PkgConfig::PKG_LIBSWRESAMPLE
+        PkgConfig::PKG_LIBSWSCALE
+        PkgConfig::PKG_LIBAVUTIL
+        PkgConfig::PKG_OPENSSL
+        PkgConfig::PKG_VPX
+        PkgConfig::PKG_OPUS
+        PkgConfig::PKG_LIBSRTP2
+        PkgConfig::PKG_LIBPCRE2_8
+        PkgConfig::PKG_HIREDIS
+        PkgConfig::PKG_SPDLOG
+        PkgConfig::PKG_WHISPER
+        ${UUID_LIB}
+        pthread dl z stdc++fs
+    )
+endif()
+
 add_subdirectory(src)
 
 # Auto-enable stubs when GPU acceleration is active

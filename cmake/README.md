@@ -11,8 +11,8 @@
 ### Debug Build (default)
 
 ```bash
-cmake -B build/debug -G Ninja -DOME_DEP_PREFIX=/opt/ovenmediaengine_getroot
-cmake --build build/debug
+cmake -B build/Debug -G Ninja -DOME_DEP_PREFIX=/opt/ovenmediaengine_getroot
+cmake --build build/Debug
 ```
 
 > External libraries are automatically installed if missing or incorrect version —
@@ -21,8 +21,8 @@ cmake --build build/debug
 ### Release Build
 
 ```bash
-cmake -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release
+cmake -B build/Release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/Release
 ```
 
 ---
@@ -45,6 +45,7 @@ cmake --build build/release
 | `OME_ENABLE_JEMALLOC` | OFF/ON | Enable jemalloc allocator. Always ON in Release, OFF by default in Debug |
 | `OME_USE_JEMALLOC_PROFILE` | OFF | Enable jemalloc heap profiling (`OME_USE_JEMALLOC_PROFILE` compile definition). Requires `OME_ENABLE_JEMALLOC=ON` |
 | `OME_BUILD_STUBS` | OFF/AUTO | Build GPU stub `.so` libraries. Auto-enabled when NVIDIA or XMA is ON |
+| `OME_BUILD_TESTS` | OFF | Build unit tests (requires internet access to fetch GTest v1.14.0) |
 
 ---
 
@@ -52,7 +53,7 @@ cmake --build build/release
 
 ```bash
 # Install to system (requires sudo)
-sudo cmake --install build/release
+sudo cmake --install build/Release
 ```
 
 | Path | Description |
@@ -112,3 +113,84 @@ Available `-D` options:
 All external library versions are defined in [`cmake/Versions.cmake`](Versions.cmake).
 To upgrade a dependency, update the version there and re-run `cmake -B ...` —
 only the changed package will be reinstalled automatically.
+
+---
+
+## Unit Tests
+
+> Unit test coverage is in early stages. Most modules currently have placeholder test files only. Contributions are welcome: see [Adding tests for a new module](#adding-tests-for-a-new-module) below.
+
+Unit tests are opt-in. Enable with `-DOME_BUILD_TESTS=ON`:
+
+```bash
+cmake -B build/Debug -S . -DCMAKE_BUILD_TYPE=Debug -DOME_BUILD_TESTS=ON -G Ninja
+cmake --build build/Debug --target tests  # skip OvenMediaEngine binary, build only test binaries
+ctest --test-dir build/Debug
+```
+
+### Test binaries and labels
+
+Each module group compiles into a separate binary with a ctest label:
+
+| Label | Binary | Source path |
+|---|---|---|
+| `base` | `ome_test_base` | `src/projects/base/` |
+| `modules` | `ome_test_modules` | `src/projects/modules/` |
+| `config` | `ome_test_config` | `src/projects/config/` |
+| `mediarouter` | `ome_test_mediarouter` | `src/projects/mediarouter/` |
+| `transcoder` | `ome_test_transcoder` | `src/projects/transcoder/` |
+| `orchestrator` | `ome_test_orchestrator` | `src/projects/orchestrator/` |
+| `providers_rtmp` | `ome_test_providers_rtmp` | `src/projects/providers/rtmp/` |
+| `providers_mpegts` | `ome_test_providers_mpegts` | `src/projects/providers/mpegts/` |
+| `providers_multiplex` | `ome_test_providers_multiplex` | `src/projects/providers/multiplex/` |
+| `providers_ovt` | `ome_test_providers_ovt` | `src/projects/providers/ovt/` |
+| `providers_file` | `ome_test_providers_file` | `src/projects/providers/file/` |
+| `providers_rtspc` | `ome_test_providers_rtspc` | `src/projects/providers/rtspc/` |
+| `providers_scheduled` | `ome_test_providers_scheduled` | `src/projects/providers/scheduled/` |
+| `providers_srt` | `ome_test_providers_srt` | `src/projects/providers/srt/` |
+| `providers_webrtc` | `ome_test_providers_webrtc` | `src/projects/providers/webrtc/` |
+| `publishers_hls` | `ome_test_publishers_hls` | `src/projects/publishers/hls/` |
+| `publishers_llhls` | `ome_test_publishers_llhls` | `src/projects/publishers/llhls/` |
+| `publishers_push` | `ome_test_publishers_push` | `src/projects/publishers/push/` |
+| `publishers_thumbnail` | `ome_test_publishers_thumbnail` | `src/projects/publishers/thumbnail/` |
+| `publishers_file` | `ome_test_publishers_file` | `src/projects/publishers/file/` |
+| `publishers_ovt` | `ome_test_publishers_ovt` | `src/projects/publishers/ovt/` |
+| `publishers_webrtc` | `ome_test_publishers_webrtc` | `src/projects/publishers/webrtc/` |
+| `publishers_srt` | `ome_test_publishers_srt` | `src/projects/publishers/srt/` |
+
+### Filtering tests
+
+```bash
+# List all tests
+ctest --test-dir build/Debug -N
+
+# Filter by label (binary/label name)
+ctest --test-dir build/Debug -L base
+ctest --test-dir build/Debug -L modules
+
+# Filter by suite name (regex)
+ctest --test-dir build/Debug -R "UrlTest"
+
+# Run a single test case
+ctest --test-dir build/Debug -R "UrlTest.ParseValidUrl"
+
+# Run directly via gtest binary (supports --gtest_filter)
+./build/Debug/bin/ome_test_base --gtest_filter="UrlTest.*"
+./build/Debug/bin/ome_test_base --gtest_filter="UrlTest.ParseValidUrl"
+```
+
+### Adding tests for a new module
+
+1. Create `*_test.cpp` files alongside the module source.
+2. Add to the module's `CMakeLists.txt`:
+
+```cmake
+if(OME_BUILD_TESTS)
+    file(GLOB _srcs "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
+    ome_add_tests(ome_test_<label>
+        SRCS ${_srcs}
+    )
+endif()
+```
+
+Use the same `ome_test_<label>` name as an existing group to merge sources into one binary, or use a new name to create a new binary with a new label.
