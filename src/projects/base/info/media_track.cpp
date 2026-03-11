@@ -633,7 +633,10 @@ void MediaTrack::OnFrameAdded(const std::shared_ptr<MediaPacket> &media_packet)
 		if (media_packet->GetFlag() == MediaPacketFlag::Key)
 		{
 			_total_key_frame_count++;
-			SetKeyFrameIntervalByMeasured(static_cast<double>(_total_frame_count) / static_cast<double>(_total_key_frame_count));
+			if (_total_key_frame_count >= 2)
+			{
+				SetKeyFrameIntervalByMeasured(static_cast<double>(_total_frame_count - 1) / static_cast<double>(_total_key_frame_count - 1));
+			}
 			SetKeyFrameIntervalLastet(_key_frame_interval_count);
 			_key_frame_interval_count = 1;
 			_delta_frame_count_since_last_key_frame = 0;
