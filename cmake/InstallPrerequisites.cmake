@@ -108,7 +108,7 @@ message(STATUS "[OME Prerequisites] Prefix: ${PREFIX}")
 macro(ome_run cmd label)
     message(STATUS "[OME Prerequisites] Building: ${label}")
     set(_ome_script "${TEMP_PATH}/_ome_${label}.sh")
-    file(WRITE "${_ome_script}" "#!/bin/bash\nset -e\n${cmd}\n")
+    file(WRITE "${_ome_script}" "#!/bin/bash\nset -e\nexport ${_COMMON_ENV}\n${cmd}\n")
     execute_process(
         COMMAND bash "${_ome_script}"
         RESULT_VARIABLE _ret
@@ -192,7 +192,7 @@ make ${_J} && sudo make install_sw && rm -rf ${TEMP_PATH}/openssl
 set(_install_libsrtp "
 mkdir -p ${TEMP_PATH}/srtp && cd ${TEMP_PATH}/srtp &&
 curl -sSLf https://github.com/cisco/libsrtp/archive/v${SRTP_VERSION}.tar.gz | tar -xz --strip-components=1 &&
-${_COMMON_ENV} ./configure --prefix=${PREFIX} --enable-openssl --with-openssl-dir=${PREFIX} &&
+./configure --prefix=${PREFIX} --enable-openssl --with-openssl-dir=${PREFIX} &&
 make ${_J} shared_library && sudo make install && rm -rf ${TEMP_PATH}/srtp
 ")
 
@@ -200,7 +200,7 @@ make ${_J} shared_library && sudo make install && rm -rf ${TEMP_PATH}/srtp
 set(_install_libsrt "
 mkdir -p ${TEMP_PATH}/srt && cd ${TEMP_PATH}/srt &&
 curl -sSLf https://github.com/Haivision/srt/archive/v${SRT_VERSION}.tar.gz | tar -xz --strip-components=1 &&
-${_COMMON_ENV} ./configure --prefix=${PREFIX} --enable-shared --disable-static &&
+./configure --prefix=${PREFIX} --enable-shared --disable-static &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/srt
 ")
 
@@ -216,7 +216,7 @@ make ${_J} && sudo make install && sudo rm -rf ${PREFIX}/share && rm -rf ${TEMP_
 set(_install_libvpx "
 mkdir -p ${TEMP_PATH}/vpx && cd ${TEMP_PATH}/vpx &&
 curl -sSLf https://codeload.github.com/webmproject/libvpx/tar.gz/v${VPX_VERSION} | tar -xz --strip-components=1 &&
-${_COMMON_ENV} ./configure --prefix=${PREFIX} --enable-vp8 --enable-pic --enable-shared --disable-static --disable-vp9 --disable-debug --disable-examples --disable-docs --disable-install-bins &&
+./configure --prefix=${PREFIX} --enable-vp8 --enable-pic --enable-shared --disable-static --disable-vp9 --disable-debug --disable-examples --disable-docs --disable-install-bins &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/vpx
 ")
 
@@ -248,7 +248,7 @@ make OS=linux && sudo make install && rm -rf ${TEMP_PATH}/openh264
 set(_install_libx264 "
 mkdir -p ${TEMP_PATH}/x264 && cd ${TEMP_PATH}/x264 &&
 curl -sLf https://code.videolan.org/videolan/x264/-/archive/master/x264-${X264_VERSION}.tar.bz2 | tar -jx --strip-components=1 &&
-${_COMMON_ENV} ./configure --prefix=${PREFIX} --enable-shared --enable-pic --disable-cli &&
+./configure --prefix=${PREFIX} --enable-shared --enable-pic --disable-cli &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/x264
 ")
 
@@ -332,7 +332,7 @@ if(ENABLE_NILOGAN)
 endif()
 
 set(_FFMPEG_CONFIGURE_CMD
-    "${_COMMON_ENV} ./configure"
+    "./configure"
     "--prefix=${PREFIX}"
     "--disable-everything --disable-programs --disable-avdevice --disable-dwt --disable-lsp --disable-faan --disable-pixelutils"
     "--enable-shared --disable-static --enable-pic"
