@@ -39,8 +39,7 @@ public:
 		return false;
 	}
 
-	bool InitCodec();
-	void UninitCodec();
+	bool InitCodec() override;
 	bool ReinitCodecIfNeed();
 
     void CodecThread() override;

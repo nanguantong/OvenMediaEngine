@@ -46,7 +46,7 @@ public:
 	int64_t _last_pkt_pts = INT64_MIN;
 	int64_t _last_pkt_duration = 0;
 
-	bool InitCodec();
+	bool InitCodec() override;
 
 	void CodecThread() override;
 

@@ -38,7 +38,7 @@ public:
 		return true;
 	}	
 	
-	bool InitCodec();
+	bool InitCodec() override;
 	
 	void CodecThread() override;
 };
