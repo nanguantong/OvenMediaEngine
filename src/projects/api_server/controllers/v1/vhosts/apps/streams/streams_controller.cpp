@@ -205,7 +205,7 @@ namespace api
 				}
 			}
 
-			return ::serdes::JsonFromStream(stream, std::move(output_streams));
+			return ::serdes::JsonFromStream(stream, output_streams);
 		}
 
 		ApiResponse StreamsController::OnDeleteStream(const std::shared_ptr<http::svr::HttpExchange> &client,

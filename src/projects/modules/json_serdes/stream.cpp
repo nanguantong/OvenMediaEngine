@@ -183,7 +183,8 @@ namespace serdes
 		SetTimestamp(object, "createdTime", common_metrics->GetCreatedTime());
 	}
 
-	static void SetOutputStreams(Json::Value &parent_object, const char *key, const std::vector<std::shared_ptr<mon::StreamMetrics>> &output_streams, Optional optional)
+	template <typename T>
+	static void SetOutputStreams(Json::Value &parent_object, const char *key, const std::vector<std::shared_ptr<T>> &output_streams, Optional optional)
 	{
 		CONVERTER_RETURN_IF(false, Json::arrayValue);
 
@@ -227,7 +228,18 @@ namespace serdes
 
 		SetString(response, "name", stream->GetName(), Optional::False);
 		SetInputStream(response, "input", stream, Optional::False);
-		SetOutputStreams(response, "outputs", output_streams, Optional::False);
+
+		// Relay stream type : made by OriginMap or OriginMapStore
+		if (stream->GetRepresentationType() == StreamRepresentationType::Relay && output_streams.size() == 0)
+		{
+			// Set stream as output_streams
+			SetOutputStreams(response, "outputs", std::vector<std::shared_ptr<const mon::StreamMetrics>>{stream}, Optional::False);
+			return response;
+		}
+		else
+		{
+			SetOutputStreams(response, "outputs", output_streams, Optional::False);
+		}
 		
 		return response;
 	}
