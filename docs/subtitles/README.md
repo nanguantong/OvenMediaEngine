@@ -10,7 +10,7 @@ From OvenMediaEngine 0.19.1 and later, you can insert subtitles into live stream
 Currently, the LL-HLS and HLS publishers are supported. WebRTC will be supported in future releases.
 {% endhint %}
 
-To enable subtitles, add a `subtitles` section under  `<Application><OutputProfiles><MediaOptions>` as follows:
+To enable subtitles, add a `subtitles` section under `<Application>` as follows:
 
 ```xml
 <Application>
