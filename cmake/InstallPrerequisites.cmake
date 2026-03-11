@@ -169,7 +169,7 @@ endif()
 # Individual install functions (implemented as cmake variables holding shell code)
 # ==============================================================================
 
-set(_COMMON_ENV "PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig:${PREFIX}/lib64/pkgconfig:$PKG_CONFIG_PATH")
+set(_COMMON_ENV "PATH=${PREFIX}/bin:$PATH PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig:${PREFIX}/lib64/pkgconfig:$PKG_CONFIG_PATH")
 set(_J "-j$(nproc)")
 
 # ---- NASM ----
@@ -216,7 +216,7 @@ make ${_J} && sudo make install && sudo rm -rf ${PREFIX}/share && rm -rf ${TEMP_
 set(_install_libvpx "
 mkdir -p ${TEMP_PATH}/vpx && cd ${TEMP_PATH}/vpx &&
 curl -sSLf https://codeload.github.com/webmproject/libvpx/tar.gz/v${VPX_VERSION} | tar -xz --strip-components=1 &&
-./configure --prefix=${PREFIX} --enable-vp8 --enable-pic --enable-shared --disable-static --disable-vp9 --disable-debug --disable-examples --disable-docs --disable-install-bins &&
+${_COMMON_ENV} ./configure --prefix=${PREFIX} --enable-vp8 --enable-pic --enable-shared --disable-static --disable-vp9 --disable-debug --disable-examples --disable-docs --disable-install-bins &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/vpx
 ")
 
@@ -248,7 +248,7 @@ make OS=linux && sudo make install && rm -rf ${TEMP_PATH}/openh264
 set(_install_libx264 "
 mkdir -p ${TEMP_PATH}/x264 && cd ${TEMP_PATH}/x264 &&
 curl -sLf https://code.videolan.org/videolan/x264/-/archive/master/x264-${X264_VERSION}.tar.bz2 | tar -jx --strip-components=1 &&
-./configure --prefix=${PREFIX} --enable-shared --enable-pic --disable-cli &&
+${_COMMON_ENV} ./configure --prefix=${PREFIX} --enable-shared --enable-pic --disable-cli &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/x264
 ")
 
