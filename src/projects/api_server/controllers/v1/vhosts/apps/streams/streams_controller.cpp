@@ -188,18 +188,40 @@ namespace api
 
 				if (publisher != nullptr)
 				{
-					for (auto &output_stream : output_streams)
+					// Relay stream type : made by OriginMap or OriginMapStore, it's output_stream is stream itself
+					if (stream->GetRepresentationType() == StreamRepresentationType::Relay && output_streams.size() == 0)
 					{
-						auto stream = publisher->GetStream(app->GetId(), output_stream->GetId());
-
-						if (stream != nullptr)
+						auto actual_stream = publisher->GetStream(app->GetId(), stream->GetId());
+						if (actual_stream == nullptr)
 						{
-							auto playlist = stream->GetDefaultPlaylist();
+							continue;
+						}
 
-							if (playlist != nullptr)
+						auto playlist = actual_stream->GetDefaultPlaylist();
+						if (playlist == nullptr)
+						{
+							continue;
+						}
+
+						stream->AddPlaylist(std::make_shared<info::Playlist>(*playlist));
+					}
+					else
+					{
+						for (auto &output_stream : output_streams)
+						{
+							auto actual_stream = publisher->GetStream(app->GetId(), output_stream->GetId());
+							if (actual_stream == nullptr)
 							{
-								output_stream->AddPlaylist(std::make_shared<info::Playlist>(*playlist));
+								continue;
 							}
+							
+							auto playlist = actual_stream->GetDefaultPlaylist();
+							if (playlist == nullptr)
+							{
+								continue;
+							}
+								
+							output_stream->AddPlaylist(std::make_shared<info::Playlist>(*playlist));
 						}
 					}
 				}
