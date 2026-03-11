@@ -71,6 +71,11 @@ namespace pvd
 		_h264_bitstream_parser.SetConfig(H264BitstreamParser::Config{._parse_slice_type = true});
 
 		_fir_interval = config.GetFIRInterval();
+		if (config.GetRtcpBasedTimestamp() == false)
+		{
+			SetRtpTimestampMethod(RtpTimestampCalculationMethod::SINGLE_DELTA);
+		}
+		// else: leave as UNDER_DECISION so RTCP SR wait / auto-fallback logic runs
 
 		_request_info = request_info;
 	}
