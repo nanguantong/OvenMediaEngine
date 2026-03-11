@@ -66,7 +66,7 @@ $ ./misc/prerequisites.sh --enable-nv
 
 ## Configuration
 
-Enable subtitles by using `<MediaOptions><Subtitles>`. For more details, refer to the [Subtitles](./) section. Each `<Rendition>` can include a `<Transcription>` element to enable speech-to-text.
+Enable subtitles by using `<Subtitles>`. For more details, refer to the [Subtitles](./) section. Each `<Rendition>` can include a `<Transcription>` element to enable speech-to-text.
 
 Example configuration:
 
