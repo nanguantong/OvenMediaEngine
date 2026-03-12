@@ -295,19 +295,21 @@ bool TranscoderStream::PrepareInternal()
 
 bool TranscoderStream::UpdateInternal(const std::shared_ptr<info::Stream> &stream)
 {
-	// Restrict transcoding while all decoders/filters/encoders are being generated
-	std::unique_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex);
-
+	logtd("%s Trying to update a stream", _log_prefix.CStr());
 	if (CanSeamlessTransition(stream) == true)
 	{
 		logtt("%s This stream support seamless transitions", _log_prefix.CStr());
 		FlushBuffers();
 
+		// Restrict transcoding while all decoders/filters/encoders are being generated
+		std::unique_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex);
 		RemoveDecoders();
 		RemoveFilters();
 		RemoveSpecificEncoders();
 
 		CreateDecoders();
+		pipeline_lock.unlock();
+		logti("%s stream has been updated", _log_prefix.CStr());		
 	}
 	else
 	{
@@ -315,11 +317,15 @@ bool TranscoderStream::UpdateInternal(const std::shared_ptr<info::Stream> &strea
 
 		FlushBuffers();
 
+		// Restrict transcoding while all decoders/filters/encoders are being generated
+		std::unique_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex);
 		RemoveDecoders();
 		RemoveFilters();
 		RemoveEncoders();
 
 		CreateDecoders();
+		pipeline_lock.unlock();
+		logti("%s stream has been updated", _log_prefix.CStr());		
 
 		UpdateMsidOfOutputStreams(stream->GetMsid());
 		NotifyUpdateStreams();
@@ -1556,6 +1562,13 @@ void TranscoderStream::DecodePacket(const std::shared_ptr<MediaPacket> &packet)
 		return;
 	}
 
+	std::shared_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex, std::try_to_lock);
+	if (!pipeline_lock.owns_lock())
+	{
+		logtt("%s Failed to acquire pipeline lock. drop the frame. decoderId(%u) ", _log_prefix.CStr(), decoder_id.value());
+		return;
+	}
+
 	auto decoder = GetDecoder(decoder_id.value());
 	if (!decoder)
 	{
@@ -1568,9 +1581,6 @@ void TranscoderStream::DecodePacket(const std::shared_ptr<MediaPacket> &packet)
 
 void TranscoderStream::OnDecodedFrame(TranscodeResult result, MediaTrackId decoder_id, std::shared_ptr<MediaFrame> decoded_frame)
 {
-	// Shared lock: allows concurrent callbacks but blocks during pipeline updates.
-	std::shared_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex);
-
 	switch (result)
 	{
 		case TranscodeResult::DataError:
@@ -1840,6 +1850,14 @@ std::shared_ptr<MediaTrack> TranscoderStream::GetInputTrackOfFilter(MediaTrackId
 
 TranscodeResult TranscoderStream::FilterFrame(MediaTrackId filter_id, std::shared_ptr<MediaFrame> decoded_frame)
 {
+	// Shared lock: allows concurrent callbacks but does not block during pipeline updates.
+	std::shared_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex, std::try_to_lock);
+	if (!pipeline_lock.owns_lock())
+	{
+		logtt("%s Failed to acquire pipeline lock. FilterId(%d)", _log_prefix.CStr(), filter_id);
+		return TranscodeResult::DataReady;
+	}
+	
 	auto filter = GetFilter(filter_id);
 	if (filter == nullptr)
 	{
@@ -1856,9 +1874,6 @@ TranscodeResult TranscoderStream::FilterFrame(MediaTrackId filter_id, std::share
 
 void TranscoderStream::OnFilteredFrame(TranscodeResult result, MediaTrackId filter_id, std::shared_ptr<MediaFrame> filtered_frame)
 {
-	// Shared lock: allows concurrent callbacks but blocks during pipeline updates.
-	std::shared_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex);
-
 	if (result != TranscodeResult::DataReady || !filtered_frame)
 	{
 #if NOTIFICATION_ENABLED
@@ -1890,6 +1905,14 @@ TranscodeResult TranscoderStream::EncoderFilterFrame(std::shared_ptr<MediaFrame>
 		return TranscodeResult::NoData;
 	}
 
+	// Shared lock: allows concurrent callbacks but does not block during pipeline updates.
+	std::shared_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex, std::try_to_lock);
+	if (!pipeline_lock.owns_lock())
+	{
+		logtt("%s Failed to acquire pipeline lock. drop the frame. filterId(%u) ", _log_prefix.CStr(), filter_id);
+		return TranscodeResult::NoData;
+	}
+
 	// If the encoder has a pre-encode filter, it is passed to the filter.
 	auto encoder_filter = GetEncoderFilter(encoder_id.value());
 	if (encoder_filter != nullptr)
@@ -1898,7 +1921,9 @@ TranscodeResult TranscoderStream::EncoderFilterFrame(std::shared_ptr<MediaFrame>
 		return TranscodeResult::DataReady;
 	}
 
-	// If there is no post-filter, it is sent directly to the encoder.
+	pipeline_lock.unlock();
+
+		// If there is no post-filter, it is sent directly to the encoder.
 	OnEncoderFilterdFrame(TranscodeResult::DataReady, encoder_id.value(), std::move(frame));
 
 	return TranscodeResult::DataReady;
@@ -1906,7 +1931,6 @@ TranscodeResult TranscoderStream::EncoderFilterFrame(std::shared_ptr<MediaFrame>
 
 void TranscoderStream::OnEncoderFilterdFrame(TranscodeResult result, MediaTrackId encoder_id, std::shared_ptr<MediaFrame> filtered_frame)
 {
-	std::shared_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex);
 
 	if (result != TranscodeResult::DataReady || !filtered_frame)
 	{
@@ -1931,6 +1955,14 @@ void TranscoderStream::OnEncoderFilterdFrame(TranscodeResult result, MediaTrackI
 TranscodeResult TranscoderStream::EncodeFrame(std::shared_ptr<const MediaFrame> frame)
 {
 	auto encoder_id = frame->GetTrackId();
+
+	std::shared_lock<std::shared_mutex> pipeline_lock(_pipeline_mutex, std::try_to_lock);
+	if (!pipeline_lock.owns_lock())
+	{
+		logtt("%s Failed to acquire pipeline lock. drop the frame. encoderId(%u) ", _log_prefix.CStr(), encoder_id);
+
+		return TranscodeResult::NoData;
+	}
 
 	// Get Encoder
 	auto encoder = GetEncoder(encoder_id);
