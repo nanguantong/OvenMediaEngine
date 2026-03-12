@@ -258,16 +258,14 @@ std::shared_ptr<MediaTrack> TranscoderStreamInternal::CreateOutputTrack(
 		output_track->SetExtraEncoderOptionsByConfig(profile.GetExtraOptions());
 	}
 
-	profile.GetName(&is_parsed);
-	if (is_parsed == true)
-	{
-		output_track->SetVariantName(profile.GetName());
-	}
 
-	// 
+
+
 	output_track->SetMediaType(cmn::MediaType::Video);
 	output_track->SetId(NewTrackId());
 	output_track->SetPublicName(input_track->GetPublicName());
+	// If the user does not specify, the default value generated in config/items/virtual_hosts/applications/output_profiles/encodes/encodes.h will be used.
+	output_track->SetVariantName(profile.GetName());	
 	output_track->SetLanguage(input_track->GetLanguage());
 	output_track->SetCharacteristics(input_track->GetCharacteristics());
 	output_track->SetOriginBitstream(input_track->GetOriginBitstream());
@@ -361,17 +359,13 @@ std::shared_ptr<MediaTrack> TranscoderStreamInternal::CreateOutputTrack(const st
 		output_track->SetBitrateByConfig(profile.GetBitrate());
 	}
 
-	profile.GetName(&is_parsed);
-	if (is_parsed == true)
-	{
-		output_track->SetVariantName(profile.GetName());
-	}
-
 	output_track->SetMediaType(cmn::MediaType::Audio);
 	output_track->SetId(NewTrackId());
 	
 	ov::String public_name = ov::String::FormatString("%s_%d", input_track->GetPublicName().CStr(), output_track->GetId());
 	output_track->SetPublicName(public_name);
+	// If the user does not specify, the default value generated in config/items/virtual_hosts/applications/output_profiles/encodes/encodes.h will be used.
+	output_track->SetVariantName(profile.GetName());	
 	output_track->SetLanguage(input_track->GetLanguage());
 	output_track->SetCharacteristics(input_track->GetCharacteristics());
 	output_track->SetOriginBitstream(input_track->GetOriginBitstream());
@@ -520,13 +514,9 @@ std::shared_ptr<MediaTrack> TranscoderStreamInternal::CreateOutputTrack(const st
 		}
 	}
 
-	profile.GetName(&is_parsed);
-	if (is_parsed == true)
-	{
-		output_track->SetVariantName(profile.GetName());
-	}
-
 	output_track->SetPublicName(input_track->GetPublicName());
+	// If the user does not specify, the default value generated in config/items/virtual_hosts/applications/output_profiles/encodes/encodes.h will be used.
+	output_track->SetVariantName(profile.GetName());	
 	output_track->SetLanguage(input_track->GetLanguage());
 	output_track->SetCharacteristics(input_track->GetCharacteristics());
 	output_track->SetOriginBitstream(input_track->GetOriginBitstream());
