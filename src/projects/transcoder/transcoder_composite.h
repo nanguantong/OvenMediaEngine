@@ -17,6 +17,7 @@
 #include <optional>
 #include <shared_mutex>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 #include "base/info/stream.h"
@@ -147,6 +148,11 @@ public:
 		_decoder_to_filters.clear();
 		_filter_to_encoder.clear();
 		_encoder_to_outputs.clear();
+
+		_cache_bypass_outputs_by_input.clear();
+		_cache_input_output_by_filter.clear();
+		_cache_input_output_by_encoder.clear();
+		_cache_outputs_by_encoder.clear();
 	}
 
 	bool Build();
@@ -214,4 +220,12 @@ private:
 	// Lock-free versions for internal use (caller must hold _mutex).
 	std::shared_ptr<MediaTrack> GetInputTrackByOutputTrackIdLocked(MediaTrackId track_id) const;
 	std::vector<MediaTrackId>   GetFilterIdsByDecoderIdLocked(MediaTrackId decoder_id) const;
+	void                        BuildCachesLocked();
+
+	// Caches
+	// These are for hot-path lookups in the transcoding pipeline. 
+	std::unordered_map<MediaTrackId, std::vector<StreamTrackPair>> _cache_bypass_outputs_by_input;
+	std::unordered_map<MediaTrackId, StreamTrackPair>              _cache_input_output_by_filter;
+	std::unordered_map<MediaTrackId, StreamTrackPair>              _cache_input_output_by_encoder;
+	std::unordered_map<MediaTrackId, std::vector<StreamTrack>>     _cache_outputs_by_encoder;
 };

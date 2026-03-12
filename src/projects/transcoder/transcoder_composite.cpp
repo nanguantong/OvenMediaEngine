@@ -71,7 +71,105 @@ bool CompositeMap::Build()
 		}
 	}
 
-	return (output_count > 0);
+	if(output_count == 0)
+	{
+		return false;
+	}
+
+	// Build caches for hot-path lookups in the transcoding pipeline.
+	BuildCachesLocked();
+
+	return true;
+}
+
+void CompositeMap::BuildCachesLocked()
+{
+	// Cache : input_track_id → [(in_stream, in_track, out_stream, out_track)]  (bypass)
+	for (auto &[input_track_id, stream_nos] : _input_to_outputs)
+	{
+		auto input_track = _input_stream->GetTrack(input_track_id);
+		if (input_track == nullptr)
+		{
+			continue;
+		}
+		for (auto &[output_stream, output_track_id] : stream_nos)
+		{
+			auto output_track = output_stream->GetTrack(output_track_id);
+			if (output_track != nullptr)
+			{
+				_cache_bypass_outputs_by_input[input_track_id].emplace_back(
+					_input_stream, input_track, output_stream, output_track);
+			}
+		}
+	}
+
+	auto resolve_input_track = [&](MediaTrackId track_id) -> std::shared_ptr<MediaTrack> {
+		for (const auto &[key, composite] : _contexts)
+		{
+			(void)key;
+			for (const auto &[os, ot] : composite->GetOutputs())
+			{
+				(void)os;
+				if (ot->GetId() == track_id)
+				{
+					return composite->GetInput().second;
+				}
+			}
+		}
+		return nullptr;
+	};
+
+	// Cache : filter_id → (in_stream, in_track, out_stream, out_track)
+	for (auto &[filter_id, encoder_id] : _filter_to_encoder)
+	{
+		auto outputs_it = _encoder_to_outputs.find(encoder_id);
+		if (outputs_it == _encoder_to_outputs.end())
+		{
+			continue;
+		}
+		for (auto &[stream, track_id] : outputs_it->second)
+		{
+			auto output_track = stream->GetTrack(track_id);
+			auto input_track  = resolve_input_track(track_id);
+			if (output_track == nullptr || input_track == nullptr)
+			{
+				continue;
+			}
+			_cache_input_output_by_filter[filter_id] =
+				std::make_tuple(_input_stream, input_track, stream, output_track);
+			break;
+		}
+	}
+
+	// Cache : encoder_id → (in_stream, in_track, out_stream, out_track)
+	for (auto &[encoder_id, stream_nos] : _encoder_to_outputs)
+	{
+		for (auto &[stream, track_id] : stream_nos)
+		{
+			auto output_track = stream->GetTrack(track_id);
+			auto input_track  = resolve_input_track(track_id);
+			if (output_track == nullptr || input_track == nullptr)
+			{
+				continue;
+			}
+			_cache_input_output_by_encoder[encoder_id] =
+				std::make_tuple(_input_stream, input_track, stream, output_track);
+			break;
+		}
+	}
+
+	// Cache : encoder_id → [(out_stream, out_track)]
+	for (auto &[encoder_id, stream_nos] : _encoder_to_outputs)
+	{
+		for (auto &[stream, track_id] : stream_nos)
+		{
+			auto output_track = stream->GetTrack(track_id);
+			if (output_track != nullptr)
+			{
+				_cache_outputs_by_encoder[encoder_id].emplace_back(stream, output_track);
+			}
+		}
+	}
 }
 
 ov::String CompositeMap::GetInfoString() const
@@ -281,106 +379,45 @@ std::vector<StreamTrackPair> CompositeMap::GetInputOutputListByDecoderId(MediaTr
 std::vector<StreamTrackPair> CompositeMap::GetBypassOutputListByInputTrackId(MediaTrackId input_track_id)
 {
 	std::shared_lock<std::shared_mutex> lock(_mutex);
-	std::vector<StreamTrackPair> result;
-
-	auto it = _input_to_outputs.find(input_track_id);
-	if (it == _input_to_outputs.end())
+	auto it = _cache_bypass_outputs_by_input.find(input_track_id);
+	if (it == _cache_bypass_outputs_by_input.end())
 	{
-		return result;
+		return {};
 	}
-
-	auto input_track = _input_stream->GetTrack(input_track_id);
-	if (input_track == nullptr)	{
-		return result;
-	}
-
-	for (auto &[output_stream, output_track_id] : it->second)
-	{
-		auto output_track = output_stream->GetTrack(output_track_id);
-		if (output_track != nullptr)
-		{
-			result.emplace_back(_input_stream, input_track, output_stream, output_track);
-		}
-	}
-
-	return result;
+	return it->second;
 }
 
 std::optional<StreamTrackPair> CompositeMap::GetInputOutputByFilterId(MediaTrackId filter_id)
 {
 	std::shared_lock<std::shared_mutex> lock(_mutex);
-
-	auto encoder_it = _filter_to_encoder.find(filter_id);
-	if (encoder_it == _filter_to_encoder.end())
+	auto it = _cache_input_output_by_filter.find(filter_id);
+	if (it == _cache_input_output_by_filter.end())
 	{
 		return std::nullopt;
 	}
-
-	auto outputs_it = _encoder_to_outputs.find(encoder_it->second);
-	if (outputs_it == _encoder_to_outputs.end())
-	{
-		return std::nullopt;
-	}
-
-	for (auto &[stream, track_id] : outputs_it->second)
-	{
-		auto output_track = stream->GetTrack(track_id);
-		auto input_track  = GetInputTrackByOutputTrackIdLocked(track_id);
-		if (output_track == nullptr || input_track == nullptr)
-		{
-			continue;
-		}
-		return std::make_tuple(_input_stream, input_track, stream, output_track);
-	}
-
-	return std::nullopt;
+	return it->second;
 }
 
 std::optional<StreamTrackPair> CompositeMap::GetInputOutputByEncoderId(MediaTrackId encoder_id)
 {
 	std::shared_lock<std::shared_mutex> lock(_mutex);
-
-	auto outputs_it = _encoder_to_outputs.find(encoder_id);
-	if (outputs_it == _encoder_to_outputs.end())
+	auto it = _cache_input_output_by_encoder.find(encoder_id);
+	if (it == _cache_input_output_by_encoder.end())
 	{
 		return std::nullopt;
 	}
-
-	for (auto &[stream, track_id] : outputs_it->second)
-	{
-		auto output_track = stream->GetTrack(track_id);
-		auto input_track  = GetInputTrackByOutputTrackIdLocked(track_id);
-		if (output_track == nullptr || input_track == nullptr)
-		{
-			continue;
-		}
-		return std::make_tuple(_input_stream, input_track, stream, output_track);
-	}
-
-	return std::nullopt;
+	return it->second;
 }
 
 std::vector<StreamTrack> CompositeMap::GetOutputListByEncoderId(MediaTrackId encoder_id)
 {
 	std::shared_lock<std::shared_mutex> lock(_mutex);
-	std::vector<StreamTrack> result;
-
-	auto outputs_it = _encoder_to_outputs.find(encoder_id);
-	if (outputs_it == _encoder_to_outputs.end())
+	auto it = _cache_outputs_by_encoder.find(encoder_id);
+	if (it == _cache_outputs_by_encoder.end())
 	{
-		return result;
+		return {};
 	}
-
-	for (auto &[stream, track_id] : outputs_it->second)
-	{
-		auto output_track = stream->GetTrack(track_id);
-		if (output_track != nullptr)
-		{
-			result.emplace_back(stream, output_track);
-		}
-	}
-
-	return result;
+	return it->second;
 }
 
 
