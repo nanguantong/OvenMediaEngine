@@ -797,6 +797,11 @@ namespace ov
 		{
 			auto socket = socket_item.second;
 
+			if (socket->HasPendingEvents() && socket->IsClosable())
+			{
+				socket->OnDataAvailableEvent();
+			}
+
 			switch (socket->DispatchEvents())
 			{
 				case Socket::DispatchResult::Dispatched:

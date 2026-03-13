@@ -153,6 +153,10 @@ namespace ov
 		bool SetSockOpt(SRT_SOCKOPT option, const void *value, int value_length);
 
 		bool IsClosable() const;
+		bool HasPendingEvents() const
+		{
+			return _has_pending_events;
+		}
 
 		SocketState GetState() const;
 
@@ -517,6 +521,10 @@ namespace ov
 		std::atomic<SocketState> _state = SocketState::Closed;
 
 		BlockingMode _blocking_mode = BlockingMode::Blocking;
+
+		// Used to reschedule deferred accept/read handling when processing must be retried later.
+		// This is a software-side retry marker, not a real pending kernel read event.
+		std::atomic<bool> _has_pending_events = false;
 
 		std::mutex _worker_mutex;
 		bool _added_to_worker = false;
