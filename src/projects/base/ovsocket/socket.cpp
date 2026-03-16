@@ -1560,10 +1560,12 @@ namespace ov
 		OV_ASSERT(data->GetCapacity() > 0, "Must specify a data size in advance using Reserve().");
 
 		size_t read_bytes;
+		size_t capacity = data->GetCapacity();
 
-		data->SetLength(data->GetCapacity());
+		// Set the length of the data to the capacity to avoid memory reallocation
+		data->SetLength(capacity);
 
-		auto error = Recv(data->GetWritableData(), data->GetCapacity(), &read_bytes, non_block);
+		auto error = Recv(data->GetWritableData(), capacity, &read_bytes, non_block);
 
 		if (error != nullptr)
 		{
