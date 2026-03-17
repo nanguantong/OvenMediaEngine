@@ -145,8 +145,9 @@ banner()
 #############################################################################################
 append_ld_preload() {
     local lib_path="$1"
-    logd "Checking library for PRELOAD_PATH ${lib_path}"
     [[ -f "${lib_path}" ]] || return 0
+
+        logd "found for PRELOAD_PATH: ${lib_path}"
 
     if [[ -z "${LD_PRELOAD:-}" ]]; then
         LD_PRELOAD="${lib_path}"
@@ -157,8 +158,10 @@ append_ld_preload() {
 
 append_ld_library_path() {
     local lib_path="$1"
-    logd "Checking library path for LD_LIBRARY_PATH: ${lib_path}"
+
     [[ -d "${lib_path}" ]] || return 0
+
+    logd "found for LD_LIBRARY_PATH: ${lib_path}"
 
     if [[ -z "${LD_LIBRARY_PATH:-}" ]]; then
         LD_LIBRARY_PATH="${lib_path}"
@@ -199,7 +202,7 @@ load_library_set_if_complete() {
         local lib_path=""
         lib_path="$(find_lib "${lib_file}")"
         if [[ -z "${lib_path}" || ! -f "${lib_path}" ]]; then
-            logw "${label} libraries are not loaded. Missing: ${lib_file}"
+            logd "${label} libraries are not loaded. Missing: ${lib_file}"
             return 1
         fi
 
@@ -238,7 +241,7 @@ show_stub_linkage() {
 # Preload the installed drivers
 ##########################################################################################
 preload_xilinx_driver() {
-    logi "Checking for XILINX/XMA drivers to preload..."
+    logd "Checking for XILINX/XMA drivers to preload..."
 
     if [[ -f /opt/xilinx/xcdr/xrmd_start.bash ]]; then
         local lib_files=(
@@ -249,6 +252,7 @@ preload_xilinx_driver() {
         )
 
         if ! load_library_set_if_complete "XILINX/XMA" "${lib_files[@]}"; then
+            logi "Xiline/XMA driver not found. hardware acceleration is not supported"
             return
         fi
 
@@ -257,14 +261,15 @@ preload_xilinx_driver() {
         source /opt/xilinx/xrm/setup.sh > /dev/null 2>&1 || true
         source /opt/xilinx/xcdr/xrmd_start.bash || true
     else 
-        logw "XILINX/XMA drivers not found, skipping preload."
+	    logi "Xilinx/XMA driver not found. hardware acceleration is not supported"
     fi
 }
 
 preload_nvidia_driver() {
-    logi "Checking for NVIDIA/CUDA drivers to preload..."
+    logd "Checking for NVIDIA/CUDA drivers to preload..."
 
-    # CUDA 10.x libraries. It will be deprecated soon. 
+    # Deprecated
+    # CUDA 10.x libraries. 
     local lib_files_10=(
         "libnvidia-ml.so.1"
         "libcuda.so.1"
@@ -298,18 +303,22 @@ preload_nvidia_driver() {
     )
 
     if load_library_set_if_complete "NVIDIA/CUDA 12.x" "${lib_files_12[@]}"; then
+        logi "NVIDIA/CUDA 12.x drivers are installed. hardware acceleration is supported"
         return
     fi
 
     if load_library_set_if_complete "NVIDIA/CUDA 11.x" "${lib_files_11[@]}"; then
+        logw "NVIDIA/CUDA 11.x drivers are installed. hardware acceleration is supported. However, Some features may not be supported. it is recommended to update to CUDA 12.x for better performance and compatibility.."
         return
     fi
 
-    if load_library_set_if_complete "NVIDIA/CUDA 10.x" "${lib_files_10[@]}"; then
-        return
-    fi
+    # Deprecated
+    #if load_library_set_if_complete "NVIDIA/CUDA 10.x" "${lib_files_10[@]}"; then
+    #	logw "NVIDIA/CUDA 10.x drivers are installed. hardware acceleration is supported. However, Some features may not be supported. it is strongly recommended to update to CUDA 12.x for better performance and compatibility. "
+    #   return
+    #fi
 
-    logd "No complete NVIDIA/CUDA library set found. Skipping NVIDIA preload."
+    logi "NVIDIA/CUDA driver not found. hardware acceleration is not supported"
 }
 
 ############################################################################################
@@ -341,8 +350,8 @@ banner
 
 # Check the installed drivers and preload them.
 LD_PRELOAD=""
-preload_xilinx_driver
 preload_nvidia_driver
+preload_xilinx_driver
 
 # Set LD_LIBRARY_PATH (prepend required paths while preserving the existing value).
 append_ld_library_path "${DEFAULT_LIB_DIR}/lib/stubs"
