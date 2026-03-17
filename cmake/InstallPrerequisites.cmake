@@ -66,23 +66,121 @@ endif()
 
 # Library versions - defined in a shared file so Dependencies.cmake can use the same values.
 include("${CMAKE_CURRENT_LIST_DIR}/Versions.cmake")
-set(OPENSSL_VERSION     ${OME_VER_OPENSSL})
-set(SRTP_VERSION        ${OME_VER_SRTP})
-set(SRT_VERSION         ${OME_VER_SRT})
-set(OPUS_VERSION        ${OME_VER_OPUS})
-set(VPX_VERSION         ${OME_VER_VPX})
-set(FDKAAC_VERSION      ${OME_VER_FDKAAC})
-set(NASM_VERSION        ${OME_VER_NASM})
-set(FFMPEG_VERSION      ${OME_VER_FFMPEG})
-set(JEMALLOC_VERSION    ${OME_VER_JEMALLOC})
-set(PCRE2_VERSION       ${OME_VER_PCRE2})
-set(OPENH264_VERSION    ${OME_VER_OPENH264})
-set(HIREDIS_VERSION     ${OME_VER_HIREDIS})
-set(NVCC_HDR_VERSION    ${OME_VER_NVCC_HDR})
-set(X264_VERSION        ${OME_VER_X264})
-set(WEBP_VERSION        ${OME_VER_WEBP})
-set(SPDLOG_VERSION      ${OME_VER_SPDLOG})
-set(WHISPER_VERSION     ${OME_VER_WHISPER})
+
+# ------------------------------------------------------------------------------
+# Parses an OME_VER_* definition declared as either:
+#   set(OME_VER_FOO <verify-version>)
+#   set(OME_VER_FOO <verify-version>@<install-ref>)
+#
+# Usage:
+#   ome_parse_dep_version(OME_VER_SRT SRT_VERSION SRT_SOURCE_REF SRT_HAS_OVERRIDE)
+#
+# Outputs:
+#   <verify-version>  -> version string used for pkg-config validation
+#   <source-ref>      -> source ref used by the installer (version or override)
+#   <has-override>    -> ON when "@<install-ref>" was provided
+# ------------------------------------------------------------------------------
+function(ome_parse_dep_version var_name out_verify_version out_source_ref out_has_override)
+    set(_value "${${var_name}}")
+    string(FIND "${_value}" "@" _sep_index)
+
+    if(_sep_index EQUAL -1)
+        set(_verify_version "${_value}")
+        set(_source_ref "${_value}")
+        set(_has_override OFF)
+    else()
+        string(REPLACE "@" ";" _parts "${_value}")
+        list(LENGTH _parts _len)
+        if(NOT _len EQUAL 2)
+            message(FATAL_ERROR "${var_name} must be: <version> or <version>@<install-ref>")
+        endif()
+        list(GET _parts 0 _verify_version)
+        list(GET _parts 1 _source_ref)
+        set(_has_override ON)
+    endif()
+
+    set(${out_verify_version} "${_verify_version}" PARENT_SCOPE)
+    set(${out_source_ref} "${_source_ref}" PARENT_SCOPE)
+    set(${out_has_override} "${_has_override}" PARENT_SCOPE)
+endfunction()
+
+# ------------------------------------------------------------------------------
+# Selects the archive ref fragment that should be embedded into the download URL.
+#
+# Usage:
+#   ome_select_archive_ref(SRT_ARCHIVE_REF
+#       "${SRT_HAS_OVERRIDE}"
+#       "${SRT_SOURCE_REF}"
+#       "v${SRT_SOURCE_REF}")
+#
+# If an install-ref override exists, use it as-is. Otherwise, use the default
+# archive ref pattern required by that dependency's upstream source archive.
+# ------------------------------------------------------------------------------
+function(ome_select_archive_ref out_var has_override source_ref default_archive_ref)
+    if("${has_override}" STREQUAL "ON")
+        set(${out_var} "${source_ref}" PARENT_SCOPE)
+    else()
+        set(${out_var} "${default_archive_ref}" PARENT_SCOPE)
+    endif()
+endfunction()
+
+# Resolve all OME_VER_* declarations into verification versions and install refs
+# before building per-dependency archive refs and source URLs below.
+ome_parse_dep_version(OME_VER_OPENSSL OPENSSL_VERSION OPENSSL_SOURCE_REF OPENSSL_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_SRTP SRTP_VERSION SRTP_SOURCE_REF SRTP_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_SRT SRT_VERSION SRT_SOURCE_REF SRT_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_OPUS OPUS_VERSION OPUS_SOURCE_REF OPUS_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_VPX VPX_VERSION VPX_SOURCE_REF VPX_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_FDKAAC FDKAAC_VERSION FDKAAC_SOURCE_REF FDKAAC_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_NASM NASM_VERSION NASM_SOURCE_REF NASM_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_FFMPEG FFMPEG_VERSION FFMPEG_SOURCE_REF FFMPEG_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_JEMALLOC JEMALLOC_VERSION JEMALLOC_SOURCE_REF JEMALLOC_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_PCRE2 PCRE2_VERSION PCRE2_SOURCE_REF PCRE2_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_OPENH264 OPENH264_VERSION OPENH264_SOURCE_REF OPENH264_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_HIREDIS HIREDIS_VERSION HIREDIS_SOURCE_REF HIREDIS_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_NVCC_HDR NVCC_HDR_VERSION NVCC_HDR_SOURCE_REF NVCC_HDR_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_X264 X264_VERSION X264_SOURCE_REF X264_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_WEBP WEBP_VERSION WEBP_SOURCE_REF WEBP_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_SPDLOG SPDLOG_VERSION SPDLOG_SOURCE_REF SPDLOG_HAS_OVERRIDE)
+ome_parse_dep_version(OME_VER_WHISPER WHISPER_VERSION WHISPER_SOURCE_REF WHISPER_HAS_OVERRIDE)
+
+# Each dependency keeps its original URL pattern. The only thing that changes
+# here is the archive ref fragment embedded into that pattern.
+ome_select_archive_ref(OPENSSL_ARCHIVE_REF "${OPENSSL_HAS_OVERRIDE}" "${OPENSSL_SOURCE_REF}" "openssl-${OPENSSL_SOURCE_REF}")
+ome_select_archive_ref(SRTP_ARCHIVE_REF "${SRTP_HAS_OVERRIDE}" "${SRTP_SOURCE_REF}" "v${SRTP_SOURCE_REF}")
+ome_select_archive_ref(SRT_ARCHIVE_REF "${SRT_HAS_OVERRIDE}" "${SRT_SOURCE_REF}" "v${SRT_SOURCE_REF}")
+ome_select_archive_ref(OPUS_ARCHIVE_REF "${OPUS_HAS_OVERRIDE}" "${OPUS_SOURCE_REF}" "refs/tags/v${OPUS_SOURCE_REF}")
+ome_select_archive_ref(VPX_ARCHIVE_REF "${VPX_HAS_OVERRIDE}" "${VPX_SOURCE_REF}" "refs/tags/v${VPX_SOURCE_REF}")
+ome_select_archive_ref(FDKAAC_ARCHIVE_REF "${FDKAAC_HAS_OVERRIDE}" "${FDKAAC_SOURCE_REF}" "v${FDKAAC_SOURCE_REF}")
+ome_select_archive_ref(NASM_ARCHIVE_REF "${NASM_HAS_OVERRIDE}" "${NASM_SOURCE_REF}" "refs/tags/nasm-${NASM_SOURCE_REF}")
+ome_select_archive_ref(FFMPEG_ARCHIVE_REF "${FFMPEG_HAS_OVERRIDE}" "${FFMPEG_SOURCE_REF}" "refs/tags/n${FFMPEG_SOURCE_REF}")
+ome_select_archive_ref(JEMALLOC_ARCHIVE_REF "${JEMALLOC_HAS_OVERRIDE}" "${JEMALLOC_SOURCE_REF}" "refs/tags/${JEMALLOC_SOURCE_REF}")
+ome_select_archive_ref(PCRE2_ARCHIVE_REF "${PCRE2_HAS_OVERRIDE}" "${PCRE2_SOURCE_REF}" "refs/tags/pcre2-${PCRE2_SOURCE_REF}")
+ome_select_archive_ref(OPENH264_ARCHIVE_REF "${OPENH264_HAS_OVERRIDE}" "${OPENH264_SOURCE_REF}" "refs/tags/v${OPENH264_SOURCE_REF}")
+ome_select_archive_ref(HIREDIS_ARCHIVE_REF "${HIREDIS_HAS_OVERRIDE}" "${HIREDIS_SOURCE_REF}" "refs/tags/v${HIREDIS_SOURCE_REF}")
+ome_select_archive_ref(NVCC_HDR_ARCHIVE_REF "${NVCC_HDR_HAS_OVERRIDE}" "${NVCC_HDR_SOURCE_REF}" "refs/tags/n${NVCC_HDR_SOURCE_REF}")
+ome_select_archive_ref(X264_ARCHIVE_REF "${X264_HAS_OVERRIDE}" "${X264_SOURCE_REF}/x264-${X264_SOURCE_REF}" "master/x264-${X264_SOURCE_REF}")
+ome_select_archive_ref(WEBP_ARCHIVE_REF "${WEBP_HAS_OVERRIDE}" "${WEBP_SOURCE_REF}" "refs/tags/v${WEBP_SOURCE_REF}")
+ome_select_archive_ref(SPDLOG_ARCHIVE_REF "${SPDLOG_HAS_OVERRIDE}" "${SPDLOG_SOURCE_REF}" "refs/tags/v${SPDLOG_SOURCE_REF}")
+ome_select_archive_ref(WHISPER_ARCHIVE_REF "${WHISPER_HAS_OVERRIDE}" "${WHISPER_SOURCE_REF}" "refs/tags/v${WHISPER_SOURCE_REF}")
+
+set(OPENSSL_SOURCE_URL "https://github.com/openssl/openssl/archive/${OPENSSL_ARCHIVE_REF}.tar.gz")
+set(SRTP_SOURCE_URL "https://github.com/cisco/libsrtp/archive/${SRTP_ARCHIVE_REF}.tar.gz")
+set(SRT_SOURCE_URL "https://github.com/Haivision/srt/archive/${SRT_ARCHIVE_REF}.tar.gz")
+set(OPUS_SOURCE_URL "https://archive.mozilla.org/pub/opus/opus-${OPUS_SOURCE_REF}.tar.gz")
+set(VPX_SOURCE_URL "https://codeload.github.com/webmproject/libvpx/tar.gz/${VPX_ARCHIVE_REF}")
+set(FDKAAC_SOURCE_URL "https://github.com/mstorsjo/fdk-aac/archive/${FDKAAC_ARCHIVE_REF}.tar.gz")
+set(NASM_SOURCE_URL "https://github.com/netwide-assembler/nasm/archive/${NASM_ARCHIVE_REF}.tar.gz")
+set(FFMPEG_SOURCE_URL "https://github.com/FFmpeg/FFmpeg/archive/${FFMPEG_ARCHIVE_REF}.tar.gz")
+set(JEMALLOC_SOURCE_URL "https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_SOURCE_REF}/jemalloc-${JEMALLOC_SOURCE_REF}.tar.bz2")
+set(PCRE2_SOURCE_URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${PCRE2_SOURCE_REF}/pcre2-${PCRE2_SOURCE_REF}.tar.gz")
+set(OPENH264_SOURCE_URL "https://github.com/cisco/openh264/archive/${OPENH264_ARCHIVE_REF}.tar.gz")
+set(HIREDIS_SOURCE_URL "https://github.com/redis/hiredis/archive/${HIREDIS_ARCHIVE_REF}.tar.gz")
+set(NVCC_HDR_SOURCE_URL "https://github.com/FFmpeg/nv-codec-headers/releases/download/n${NVCC_HDR_SOURCE_REF}/nv-codec-headers-${NVCC_HDR_SOURCE_REF}.tar.gz")
+set(X264_SOURCE_URL "https://code.videolan.org/videolan/x264/-/archive/${X264_ARCHIVE_REF}.tar.bz2")
+set(WEBP_SOURCE_URL "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${WEBP_SOURCE_REF}.tar.gz")
+set(SPDLOG_SOURCE_URL "https://github.com/gabime/spdlog/archive/${SPDLOG_ARCHIVE_REF}.tar.gz")
+set(WHISPER_SOURCE_URL "https://github.com/ggml-org/whisper.cpp/archive/${WHISPER_ARCHIVE_REF}.tar.gz")
 
 # ==============================================================================
 # Detect OS
@@ -175,7 +273,7 @@ set(_J "-j$(nproc)")
 # ---- NASM ----
 set(_install_nasm "
 mkdir -p ${TEMP_PATH}/nasm && cd ${TEMP_PATH}/nasm &&
-curl -sSLf https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-${NASM_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${NASM_SOURCE_URL} | tar -xz --strip-components=1 &&
 ./autogen.sh && ./configure --prefix=${PREFIX} &&
 make ${_J} && touch nasm.1 ndisasm.1 && sudo make install && rm -rf ${TEMP_PATH}/nasm
 ")
@@ -183,7 +281,7 @@ make ${_J} && touch nasm.1 ndisasm.1 && sudo make install && rm -rf ${TEMP_PATH}
 # ---- OpenSSL ----
 set(_install_openssl "
 mkdir -p ${TEMP_PATH}/openssl && cd ${TEMP_PATH}/openssl &&
-curl -sSLf https://github.com/openssl/openssl/archive/openssl-${OPENSSL_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${OPENSSL_SOURCE_URL} | tar -xz --strip-components=1 &&
 ./config --prefix=${PREFIX} --openssldir=${PREFIX} --libdir=lib -Wl,-rpath,${PREFIX}/lib shared no-idea no-mdc2 no-rc5 no-ec2m no-ecdh no-ecdsa no-async &&
 make ${_J} && sudo make install_sw && rm -rf ${TEMP_PATH}/openssl
 ")
@@ -191,7 +289,7 @@ make ${_J} && sudo make install_sw && rm -rf ${TEMP_PATH}/openssl
 # ---- libsrtp ----
 set(_install_libsrtp "
 mkdir -p ${TEMP_PATH}/srtp && cd ${TEMP_PATH}/srtp &&
-curl -sSLf https://github.com/cisco/libsrtp/archive/v${SRTP_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${SRTP_SOURCE_URL} | tar -xz --strip-components=1 &&
 ./configure --prefix=${PREFIX} --enable-openssl --with-openssl-dir=${PREFIX} &&
 make ${_J} shared_library && sudo make install && rm -rf ${TEMP_PATH}/srtp
 ")
@@ -199,7 +297,7 @@ make ${_J} shared_library && sudo make install && rm -rf ${TEMP_PATH}/srtp
 # ---- SRT ----
 set(_install_libsrt "
 mkdir -p ${TEMP_PATH}/srt && cd ${TEMP_PATH}/srt &&
-curl -sSLf https://github.com/Haivision/srt/archive/v${SRT_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${SRT_SOURCE_URL} | tar -xz --strip-components=1 &&
 ./configure --prefix=${PREFIX} --enable-shared --disable-static &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/srt
 ")
@@ -207,7 +305,7 @@ make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/srt
 # ---- Opus ----
 set(_install_libopus "
 mkdir -p ${TEMP_PATH}/opus && cd ${TEMP_PATH}/opus &&
-curl -sSLf https://archive.mozilla.org/pub/opus/opus-${OPUS_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${OPUS_SOURCE_URL} | tar -xz --strip-components=1 &&
 autoreconf -fiv && ./configure --prefix=${PREFIX} --enable-shared --disable-static &&
 make ${_J} && sudo make install && sudo rm -rf ${PREFIX}/share && rm -rf ${TEMP_PATH}/opus
 ")
@@ -215,7 +313,7 @@ make ${_J} && sudo make install && sudo rm -rf ${PREFIX}/share && rm -rf ${TEMP_
 # ---- libvpx ----
 set(_install_libvpx "
 mkdir -p ${TEMP_PATH}/vpx && cd ${TEMP_PATH}/vpx &&
-curl -sSLf https://codeload.github.com/webmproject/libvpx/tar.gz/v${VPX_VERSION} | tar -xz --strip-components=1 &&
+curl -sSLf ${VPX_SOURCE_URL} | tar -xz --strip-components=1 &&
 ./configure --prefix=${PREFIX} --enable-vp8 --enable-pic --enable-shared --disable-static --disable-vp9 --disable-debug --disable-examples --disable-docs --disable-install-bins &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/vpx
 ")
@@ -223,7 +321,7 @@ make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/vpx
 # ---- libwebp ----
 set(_install_libwebp "
 mkdir -p ${TEMP_PATH}/webp && cd ${TEMP_PATH}/webp &&
-curl -sSLf https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${WEBP_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${WEBP_SOURCE_URL} | tar -xz --strip-components=1 &&
 ./configure --prefix=${PREFIX} --enable-shared --disable-static &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/webp
 ")
@@ -231,7 +329,7 @@ make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/webp
 # ---- fdk-aac ----
 set(_install_fdk_aac "
 mkdir -p ${TEMP_PATH}/aac && cd ${TEMP_PATH}/aac &&
-curl -sSLf https://github.com/mstorsjo/fdk-aac/archive/v${FDKAAC_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${FDKAAC_SOURCE_URL} | tar -xz --strip-components=1 &&
 autoreconf -fiv && ./configure --prefix=${PREFIX} --enable-shared --disable-static --datadir=/tmp/aac &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/aac
 ")
@@ -239,7 +337,7 @@ make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/aac
 # ---- openh264 ----
 set(_install_libopenh264 "
 mkdir -p ${TEMP_PATH}/openh264 && cd ${TEMP_PATH}/openh264 &&
-curl -sSLf https://github.com/cisco/openh264/archive/refs/tags/v${OPENH264_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${OPENH264_SOURCE_URL} | tar -xz --strip-components=1 &&
 sed -i -e 's|PREFIX=/usr/local|PREFIX=${PREFIX}|' Makefile &&
 make OS=linux && sudo make install && rm -rf ${TEMP_PATH}/openh264
 ")
@@ -247,7 +345,7 @@ make OS=linux && sudo make install && rm -rf ${TEMP_PATH}/openh264
 # ---- x264 (optional) ----
 set(_install_libx264 "
 mkdir -p ${TEMP_PATH}/x264 && cd ${TEMP_PATH}/x264 &&
-curl -sLf https://code.videolan.org/videolan/x264/-/archive/master/x264-${X264_VERSION}.tar.bz2 | tar -jx --strip-components=1 &&
+curl -sLf ${X264_SOURCE_URL} | tar -jx --strip-components=1 &&
 ./configure --prefix=${PREFIX} --enable-shared --enable-pic --disable-cli &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/x264
 ")
@@ -255,7 +353,7 @@ make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/x264
 # ---- nv-codec-headers (optional) ----
 set(_install_nvcc_hdr "
 mkdir -p ${TEMP_PATH}/nvcc-hdr && cd ${TEMP_PATH}/nvcc-hdr &&
-curl -sSLf https://github.com/FFmpeg/nv-codec-headers/releases/download/n${NVCC_HDR_VERSION}/nv-codec-headers-${NVCC_HDR_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${NVCC_HDR_SOURCE_URL} | tar -xz --strip-components=1 &&
 sed -i 's|PREFIX.*=\\(.*\\)|PREFIX = ${PREFIX}|g' Makefile && sudo make install
 ")
 
@@ -356,7 +454,7 @@ list(JOIN _FFMPEG_CONFIGURE_CMD " " _FFMPEG_CONFIGURE_LINE)
 
 set(_install_ffmpeg "
 mkdir -p ${TEMP_PATH}/ffmpeg && cd ${TEMP_PATH}/ffmpeg &&
-curl -sSLf https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${FFMPEG_SOURCE_URL} | tar -xz --strip-components=1 &&
 ${_FFMPEG_PATCH_CMDS}${_FFMPEG_CONFIGURE_LINE} &&
 make ${_J} && sudo make install && sudo rm -rf ${PREFIX}/share && rm -rf ${TEMP_PATH}/ffmpeg
 ")
@@ -378,7 +476,7 @@ else()
 endif()
 set(_install_jemalloc "
 mkdir -p ${TEMP_PATH}/jemalloc && cd ${TEMP_PATH}/jemalloc &&
-curl -sSLf https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VERSION}/jemalloc-${JEMALLOC_VERSION}.tar.bz2 | tar -jx --strip-components=1 &&
+curl -sSLf ${JEMALLOC_SOURCE_URL} | tar -jx --strip-components=1 &&
 ./configure --prefix=${PREFIX} --enable-shared ${_JEMALLOC_PROF_FLAG} &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/jemalloc
 ")
@@ -386,7 +484,7 @@ make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/jemalloc
 # ---- PCRE2 ----
 set(_install_libpcre2 "
 mkdir -p ${TEMP_PATH}/pcre2 && cd ${TEMP_PATH}/pcre2 &&
-curl -sSLf https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${PCRE2_VERSION}/pcre2-${PCRE2_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${PCRE2_SOURCE_URL} | tar -xz --strip-components=1 &&
 ./configure --prefix=${PREFIX} --enable-shared --disable-static &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/pcre2
 ")
@@ -394,14 +492,14 @@ make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/pcre2
 # ---- hiredis ----
 set(_install_hiredis "
 mkdir -p ${TEMP_PATH}/hiredis && cd ${TEMP_PATH}/hiredis &&
-curl -sSLf https://github.com/redis/hiredis/archive/refs/tags/v${HIREDIS_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${HIREDIS_SOURCE_URL} | tar -xz --strip-components=1 &&
 make ${_J} PREFIX=${PREFIX} && sudo make install PREFIX=${PREFIX} && rm -rf ${TEMP_PATH}/hiredis
 ")
 
 # ---- spdlog ----
 set(_install_spdlog "
 mkdir -p ${TEMP_PATH}/spdlog && cd ${TEMP_PATH}/spdlog &&
-curl -sSLf https://github.com/gabime/spdlog/archive/refs/tags/v${SPDLOG_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${SPDLOG_SOURCE_URL} | tar -xz --strip-components=1 &&
 mkdir -p build && cd build &&
 cmake .. -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_INSTALL_LIBDIR=${PREFIX}/lib &&
 make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/spdlog
@@ -429,7 +527,7 @@ endif()
 list(JOIN _WHISPER_CMAKE_ARGS " " _WHISPER_CMAKE_LINE)
 set(_install_whisper "
 mkdir -p ${TEMP_PATH}/whisper && cd ${TEMP_PATH}/whisper &&
-curl -sSLf https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v${WHISPER_VERSION}.tar.gz | tar -xz --strip-components=1 &&
+curl -sSLf ${WHISPER_SOURCE_URL} | tar -xz --strip-components=1 &&
 ${_WHISPER_CMAKE_LINE} &&
 cd build && make ${_J} && sudo make install && rm -rf ${TEMP_PATH}/whisper
 ")
