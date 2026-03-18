@@ -288,12 +288,12 @@ namespace cmn
 		{
 			OV_CASE_RETURN(cmn::MediaCodecId::None, false);
 
-			OV_CASE_RETURN(cmn::MediaCodecId::H264, true);
-			OV_CASE_RETURN(cmn::MediaCodecId::H265, true);
-			OV_CASE_RETURN(cmn::MediaCodecId::Vp8, true);
-			OV_CASE_RETURN(cmn::MediaCodecId::Vp9, true);
-			OV_CASE_RETURN(cmn::MediaCodecId::Av1, true);
-			OV_CASE_RETURN(cmn::MediaCodecId::Flv, true);
+			OV_CASE_RETURN(cmn::MediaCodecId::H264, false);
+			OV_CASE_RETURN(cmn::MediaCodecId::H265, false);
+			OV_CASE_RETURN(cmn::MediaCodecId::Vp8, false);
+			OV_CASE_RETURN(cmn::MediaCodecId::Vp9, false);
+			OV_CASE_RETURN(cmn::MediaCodecId::Av1, false);
+			OV_CASE_RETURN(cmn::MediaCodecId::Flv, false);
 
 			OV_CASE_RETURN(cmn::MediaCodecId::Aac, false);
 			OV_CASE_RETURN(cmn::MediaCodecId::Mp3, false);
