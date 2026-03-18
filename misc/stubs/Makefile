@@ -8,7 +8,7 @@ CFLAGS = -Wall -fPIC
 LDFLAGS = -shared
 
 # Source files
-SOURCES = libnvidia-ml_stub.c libcuda_stub.c libcudart_stub.c libcublas_stub.c libcublasLt_stub.c libxma2api_stub.c libxrm_stub.c libxrt_core_stub.c 
+SOURCES = libnvidia-ml_stub.c libcuda_stub.c libcudart11_stub.c libcudart12_stub.c libcublas_stub.c libcublasLt_stub.c libxma2api_stub.c libxrm_stub.c libxrt_core_stub.c 
 
 # Object files
 OBJECTS = $(SOURCES:.c=.o)
@@ -32,7 +32,7 @@ libnvidia-ml.so.1: libnvidia-ml_stub.o
 libcuda.so.1: libcuda_stub.o
 	$(CC) $(LDFLAGS) -Wl,-soname,libcuda.so.1 -Wl,--version-script=libcuda.map -o $@ $^
 
-libcudart.so.11.0: libcudart_stub.o
+libcudart.so.11.0: libcudart11_stub.o
 	$(CC) $(LDFLAGS) -Wl,-soname,libcudart.so.11.0 -Wl,--version-script=libcudart11.map -o $@ $^
 
 libcublas.so.11: libcublas_stub.o
@@ -41,7 +41,7 @@ libcublas.so.11: libcublas_stub.o
 libcublasLt.so.11: libcublasLt_stub.o
 	$(CC) $(LDFLAGS) -Wl,-soname,libcublasLt.so.11 -Wl,--version-script=libcublasLt11.map -o $@ $^
 
-libcudart.so.12: libcudart_stub.o
+libcudart.so.12: libcudart12_stub.o
 	$(CC) $(LDFLAGS) -Wl,-soname,libcudart.so.12 -Wl,--version-script=libcudart12.map -o $@ $^
 
 libcublas.so.12: libcublas_stub.o
