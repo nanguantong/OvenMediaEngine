@@ -9,20 +9,20 @@
 #   cmake -P cmake/InstallPrerequisites.cmake [options]
 #
 # Options (set via -D on the command line before -P):
-#   -DPREFIX=/opt/ovenmediaengine          Installation prefix (default)
-#   -DENABLE_NVIDIA=ON                     Enable NVIDIA nv-codec-headers + CUDA FFmpeg support
-#   -DENABLE_QSV=ON                        Enable Intel QSV (libmfx) FFmpeg support
-#   -DENABLE_XMA=ON                        Enable Xilinx XMA FFmpeg support
-#   -DENABLE_NILOGAN=ON                    Enable Netint NiLogan FFmpeg support
-#   -DNILOGAN_PATCH_PATH=<path>            Path to NiLogan FFmpeg patch file (required with ENABLE_NILOGAN)
-#   -DNILOGAN_XCODER_COMPILE_PATH=<path>   Path to xcoder_logan source to compile (optional)
-#   -DENABLE_X264=ON                       Enable libx264 (default ON)
+#   -DOME_DEP_PREFIX=/opt/ovenmediaengine  Installation prefix (default)
+#   -DOME_HWACCEL_NVIDIA=ON                Enable NVIDIA nv-codec-headers + CUDA FFmpeg/Whisper support
+#   -DOME_HWACCEL_QSV=ON                   Enable Intel QSV (libmfx) FFmpeg support
+#   -DOME_HWACCEL_XMA=ON                   Enable Xilinx XMA FFmpeg support
+#   -DOME_HWACCEL_NILOGAN=ON               Enable Netint NiLogan FFmpeg support
+#   -DOME_NILOGAN_PATCH_PATH=<path>        Path to NiLogan FFmpeg patch file (required with OME_HWACCEL_NILOGAN)
+#   -DOME_NILOGAN_XCODER_COMPILE_PATH=<path>  Path to xcoder_logan source to compile (optional)
+#   -DOME_ENABLE_X264=ON                   Enable libx264 (default ON)
 #   -DOME_USE_CLANG=ON                     Install clang/lld and use as compiler (default ON)
 #   -DTARGET=<name>                        Install only this target
 #
 # Example:
-#   cmake -DENABLE_NVIDIA=ON -P cmake/InstallPrerequisites.cmake
-#   cmake -DENABLE_XMA=ON -P cmake/InstallPrerequisites.cmake
+#   cmake -DOME_HWACCEL_NVIDIA=ON -P cmake/InstallPrerequisites.cmake
+#   cmake -DOME_HWACCEL_XMA=ON -P cmake/InstallPrerequisites.cmake
 #
 
 cmake_minimum_required(VERSION 3.16)
@@ -30,33 +30,45 @@ cmake_minimum_required(VERSION 3.16)
 # ==============================================================================
 # Defaults
 # ==============================================================================
-if(NOT DEFINED PREFIX)
-    set(PREFIX /opt/ovenmediaengine)
+if(NOT DEFINED OME_DEP_PREFIX)
+    set(OME_DEP_PREFIX /opt/ovenmediaengine)
 endif()
+# Internal alias used throughout this file
+set(PREFIX ${OME_DEP_PREFIX})
 if(NOT DEFINED TEMP_PATH)
     set(TEMP_PATH "/tmp/ome_deps_$ENV{USER}")
 endif()
-if(NOT DEFINED ENABLE_X264)
-    set(ENABLE_X264 ON)
+if(NOT DEFINED OME_ENABLE_X264)
+    set(OME_ENABLE_X264 ON)
 endif()
-if(NOT DEFINED ENABLE_NVIDIA)
-    set(ENABLE_NVIDIA OFF)
+# Internal alias used throughout this file
+set(ENABLE_X264 ${OME_ENABLE_X264})
+if(NOT DEFINED OME_HWACCEL_NVIDIA)
+    set(OME_HWACCEL_NVIDIA OFF)
 endif()
-if(NOT DEFINED ENABLE_QSV)
-    set(ENABLE_QSV OFF)
+# Internal alias used throughout this file
+set(ENABLE_NVIDIA ${OME_HWACCEL_NVIDIA})
+if(NOT DEFINED OME_HWACCEL_QSV)
+    set(OME_HWACCEL_QSV OFF)
 endif()
-if(NOT DEFINED ENABLE_XMA)
-    set(ENABLE_XMA OFF)
+if(NOT DEFINED OME_HWACCEL_XMA)
+    set(OME_HWACCEL_XMA OFF)
 endif()
-if(NOT DEFINED ENABLE_NILOGAN)
-    set(ENABLE_NILOGAN OFF)
+if(NOT DEFINED OME_HWACCEL_NILOGAN)
+    set(OME_HWACCEL_NILOGAN OFF)
 endif()
-if(NOT DEFINED NILOGAN_PATCH_PATH)
-    set(NILOGAN_PATCH_PATH "")
+if(NOT DEFINED OME_NILOGAN_PATCH_PATH)
+    set(OME_NILOGAN_PATCH_PATH "")
 endif()
-if(NOT DEFINED NILOGAN_XCODER_COMPILE_PATH)
-    set(NILOGAN_XCODER_COMPILE_PATH "")
+if(NOT DEFINED OME_NILOGAN_XCODER_COMPILE_PATH)
+    set(OME_NILOGAN_XCODER_COMPILE_PATH "")
 endif()
+# Internal aliases used throughout this file
+set(ENABLE_QSV ${OME_HWACCEL_QSV})
+set(ENABLE_XMA ${OME_HWACCEL_XMA})
+set(ENABLE_NILOGAN ${OME_HWACCEL_NILOGAN})
+set(NILOGAN_PATCH_PATH ${OME_NILOGAN_PATCH_PATH})
+set(NILOGAN_XCODER_COMPILE_PATH ${OME_NILOGAN_XCODER_COMPILE_PATH})
 if(NOT DEFINED OME_USE_CLANG)
     set(OME_USE_CLANG ON)
 endif()
@@ -381,6 +393,7 @@ if(ENABLE_X264)
 endif()
 
 if(ENABLE_NVIDIA)
+    string(REPLACE "PATH=${PREFIX}/bin:" "PATH=/usr/local/cuda/bin:${PREFIX}/bin:" _COMMON_ENV "${_COMMON_ENV}")
     string(APPEND _FFMPEG_ADDI_LIBS    " --enable-cuda-nvcc --enable-cuda-llvm --enable-nvenc --enable-nvdec --enable-ffnvcodec --enable-cuvid")
     string(APPEND _FFMPEG_ADDI_ENCODER ",h264_nvenc,hevc_nvenc")
     string(APPEND _FFMPEG_ADDI_DECODER ",h264_cuvid,hevc_cuvid")
@@ -521,8 +534,14 @@ set(_WHISPER_CMAKE_ARGS
     "-DWHISPER_BUILD_SERVER=OFF"
     "-DGGML_CUDA=${_WHISPER_CUDA}"
 )
-if(ENABLE_NVIDIA)
-    list(APPEND _WHISPER_CMAKE_ARGS "\"-DCMAKE_CUDA_ARCHITECTURES=61\;75\;86\"")
+if(OME_HWACCEL_NVIDIA)
+    list(APPEND _WHISPER_CMAKE_ARGS "\"-DCMAKE_CUDA_ARCHITECTURES=75\;80\;86\;89\"")
+    find_program(_OME_NVCC nvcc HINTS /usr/local/cuda/bin /usr/cuda/bin)
+    if(_OME_NVCC)
+        list(APPEND _WHISPER_CMAKE_ARGS "-DCMAKE_CUDA_COMPILER=${_OME_NVCC}")
+    else()
+        message(WARNING "[OME] nvcc not found - whisper CUDA build may fail. Install CUDA toolkit or add nvcc to PATH.")
+    endif()
 endif()
 list(JOIN _WHISPER_CMAKE_ARGS " " _WHISPER_CMAKE_LINE)
 set(_install_whisper "
