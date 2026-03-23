@@ -44,13 +44,12 @@ MediaTrack::~MediaTrack()
 // Same ID required
 bool MediaTrack::Update(const MediaTrack &media_track)
 {
-	std::scoped_lock(
+	std::scoped_lock lock(
 		_media_mutex, media_track._media_mutex,
 		_video_mutex, media_track._video_mutex,
 		_audio_mutex, media_track._audio_mutex,
-		_subtitle_mutex, media_track._subtitle_mutex
-	);
-	
+		_subtitle_mutex, media_track._subtitle_mutex);
+
 	if (_id != media_track.GetId())
 	{
 		return false;
