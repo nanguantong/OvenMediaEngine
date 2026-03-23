@@ -87,6 +87,8 @@ namespace pub
 				continue;
 			}
 		}
+
+		// It is used for GC for deleted record info
 		SessionUpdateInternal();
 
 		logti("File Application %s/%s stream has been deleted", GetVHostAppName().CStr(), stream->GetName().CStr());
@@ -184,12 +186,16 @@ namespace pub
 			return;
 		}
 
+		// TODO: Consider integrating with SessionUpdateInternal function. 
+		//       but, since there is a problem of locking with GetStream while FileStream is deleting, it is separated for now.
 		auto record_info_list = _record_info_list.GetByStreamName(stream->GetName());
 		for (auto &userdata : record_info_list)
 		{
 			if (stopped == true)
 			{
 				userdata->SetState(info::Record::RecordState::Ready);
+
+				// Comment: If the stream is stopped, the session is also stopped and deleted. So there is no need to stop/delete the session separately.
 			}
 			else
 			{
@@ -212,6 +218,7 @@ namespace pub
 				continue;
 			}
 
+			// Note: If GetStream is called while the FileStream is deleteing, a lock occurs.
 			auto stream = std::static_pointer_cast<FileStream>(GetStream(userdata->GetStreamName()));
 			if (stream != nullptr && stream->GetState() == pub::Stream::State::STARTED)
 			{
@@ -240,7 +247,15 @@ namespace pub
 	// Called By API
 	std::shared_ptr<ov::Error> FileApplication::RecordStart(const std::shared_ptr<info::Record> record)
 	{
-		return RecordStartInternal(record);
+		std::shared_ptr<ov::Error> result = RecordStartInternal(record);
+		if (result->GetCode() == FilePublisher::FilePublisherStatusCode::Success)
+		{
+			// If the stream is already created, the recording is started immediately.
+			// If the stream is not created, the recording will be started by SessionUpdateByStream.
+			SessionUpdateInternal();
+		}
+
+		return result;
 	}
 
 	std::shared_ptr<ov::Error> FileApplication::RecordStartInternal(const std::shared_ptr<info::Record> &record)
