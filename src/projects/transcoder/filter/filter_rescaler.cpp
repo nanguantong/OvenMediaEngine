@@ -969,7 +969,9 @@ void FilterRescaler::UpdateSkipFrames()
 	{
 		if (elapsed_stable_time > _SKIP_FRAMES_RECOVERY_HOLD_INTERVAL_MS)
 		{
-			next_skip_frames = (_skip_frames - 1);
+			// Decay 20% per step (rate-limited)
+			int32_t rate_limited_next = _skip_frames - std::max(1, _skip_frames / 5); 
+			next_skip_frames = std::max(rate_limited_next, next_skip_frames);
 			if (next_skip_frames < 0)
 			{
 				next_skip_frames = 0;
