@@ -51,7 +51,12 @@ namespace pub
 		{
 			logte("Failed to start recording. id(%d)", GetId());
 			SetState(SessionState::Error);
-			GetRecord()->SetState(info::Record::RecordState::Error);
+
+			auto record = GetRecord();
+			if(record != nullptr)
+			{
+				record->SetState(info::Record::RecordState::Error);
+			}
 			return false;
 		}
 
@@ -66,7 +71,11 @@ namespace pub
 		{
 			logte("Failed to stop recording. id(%d)", GetId());
 			SetState(SessionState::Error);
-			GetRecord()->SetState(info::Record::RecordState::Error);
+			auto record = GetRecord();
+			if(record != nullptr)
+			{
+				record->SetState(info::Record::RecordState::Error);
+			}
 			return false;
 		}
 
@@ -81,7 +90,11 @@ namespace pub
 		{
 			logte("Failed to stop recording. id(%d)", GetId());
 			SetState(SessionState::Error);
-			GetRecord()->SetState(info::Record::RecordState::Error);
+			auto record = GetRecord();
+			if(record != nullptr)
+			{
+				record->SetState(info::Record::RecordState::Error);
+			}
 			return false;
 		}
 
@@ -89,7 +102,11 @@ namespace pub
 		{
 			logte("Failed to start recording. id(%d)", GetId());
 			SetState(SessionState::Error);
-			GetRecord()->SetState(info::Record::RecordState::Error);
+			auto record = GetRecord();
+			if(record != nullptr)
+			{
+				record->SetState(info::Record::RecordState::Error);
+			}
 			return false;
 		}
 
