@@ -178,7 +178,7 @@ public:
 
 			if (_output_track)
 			{
-				prefix += ov::String::FormatString(",Track:%d", _output_track->GetId());
+				prefix += ov::String::FormatString("|T=%d,M=%s:%d", _output_track->GetId(), cmn::GetCodecModuleIdString(_output_track->GetCodecModuleId()), _output_track->GetCodecDeviceId());
 			}
 			return prefix;
 		}

@@ -18,10 +18,6 @@
 #define MAX_QUEUE_SIZE 2
 #define FILTER_FLAG_HWFRAME_AWARE (1 << 0)
 
-#define _SKIP_FRAMES_ENABLED 1
-#define _SKIP_FRAMES_CHECK_INTERVAL 2000				 // 2s
-#define _SKIP_FRAMES_STABLE_FOR_RETRIEVE_INTERVAL 10000	 // 10s
-
 FilterRescaler::FilterRescaler()
 {
 	_frame = ::av_frame_alloc();
@@ -667,6 +663,19 @@ bool FilterRescaler::PopProcess(bool is_flush)
 		output_frame->SetDuration((int64_t)((double)output_frame->GetDuration() * _input_track->GetTimeBase().GetExpr() / _output_track->GetTimeBase().GetExpr()));
 		output_frame->SetSourceId(_source_id);
 
+#if _SIMULATE_PROCESSING_DELAY_ENABLED	
+		if ((rand() % 100) == 0)
+		{
+			_simulate_overload = rand() % 200;
+			if(_simulate_overload < 100)
+				_simulate_overload = 0;
+
+			logti("[%s] Simulating overload of %d ms for testing", GetLogPrefix().CStr(), _simulate_overload);
+			
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(_simulate_overload)); 
+#endif
+
 		Complete(TranscodeResult::DataReady, std::move(output_frame));
 	}
 
@@ -692,14 +701,9 @@ void FilterRescaler::WorkerThread()
 	SetState(State::STARTED);
 
 #if _SKIP_FRAMES_ENABLED
-	auto skip_frames_last_check_time = ov::Time::GetTimestampInMs();
-	auto skip_frames_last_changed_time = ov::Time::GetTimestampInMs();
-	
-
 	// Set initial Skip Frames
-	int32_t skip_frames_conf = _output_track->GetSkipFramesByConfig();
-	int32_t skip_frames = skip_frames_conf;
-	
+	_skip_frames_conf			   = _output_track->GetSkipFramesByConfig();
+	_skip_frames				   = _skip_frames_conf;
 #endif
 
 	// XMA devices expand the memory pool when processing the first frame filtering. 
@@ -716,80 +720,6 @@ void FilterRescaler::WorkerThread()
 		}
 
 		auto media_frame = std::move(obj.value());
-
-#if _SKIP_FRAMES_ENABLED 
-		// Dynamic skip frames adjustment
-		if (skip_frames_conf == 0)
-		{
-			auto curr_time			 = ov::Time::GetTimestampInMs();
-
-			// Periodically check the status of the queue
-			auto elapsed_check_time	 = curr_time - skip_frames_last_check_time;
-			auto elapsed_stable_time = curr_time - skip_frames_last_changed_time;
-
-			auto threshold_rate		 = 0.75f;
-			if (elapsed_check_time > _SKIP_FRAMES_CHECK_INTERVAL)
-			{
-				skip_frames_last_check_time = curr_time;
-
-				logtd("[%s] SkipFrames(%d), Current FPS(%.2f), Expected FPS(%.2f), Threshold FPS(%.2f), Queue(%zu/%zu)",
-					  GetLogPrefix().CStr(),
-					  skip_frames,
-					  _fps_filter.GetOutputFramesPerSecond(),
-					  _fps_filter.GetExpectedOutputFramesPerSecond(),
-					  _fps_filter.GetExpectedOutputFramesPerSecond() * threshold_rate,
-					  _input_buffer.GetSize(),
-					  _input_buffer.GetThreshold());
-
-				// If the queue is unstable, quickly increase the number of skip frames.
-				// Actual output fps is less than 75% of expected fps
-				if (_fps_filter.GetOutputFramesPerSecond() < (_fps_filter.GetExpectedOutputFramesPerSecond() * threshold_rate))
-				{
-					skip_frames_last_changed_time = curr_time;
-
-					// The frame skip should not be more than 1 second.
-					int32_t max_skip_frames		  = (int32_t)(_fps_filter.GetExpectedOutputFramesPerSecond() - 1);
-					if (++skip_frames > max_skip_frames)
-					{
-						skip_frames = max_skip_frames;
-					}
-
-					logtw("[%s] Scaler is unstable. changing skip frames %d to %d", GetLogPrefix().CStr(), skip_frames - 1, skip_frames);
-				}
-				// If the queue is stable, slowly decrease the number of skip frames.
-				else if ((skip_frames > 0) && (elapsed_stable_time > _SKIP_FRAMES_STABLE_FOR_RETRIEVE_INTERVAL))
-				{
-					// Queue is stable when there is only 1 or no frame in the queue
-					if (_input_buffer.GetSize() <= 1)
-					{
-						skip_frames_last_changed_time = curr_time;
-
-						if (--skip_frames < 0)
-						{
-							skip_frames = 0;
-						}
-
-						logti("[%s] Scaler is stable. changing skip frames %d to %d", GetLogPrefix().CStr(), skip_frames + 1, skip_frames);
-					}
-				}
-
-				_fps_filter.SetSkipFrames(skip_frames);
-			}
-		}
-		// Static skip frames set by the user
-		else if (skip_frames_conf > 0)
-		{
-			if (_fps_filter.GetSkipFrames() != skip_frames_conf)
-			{
-				_fps_filter.SetSkipFrames(skip_frames_conf);
-
-				logti("[%s] Changed skip frames to user config value: %d", GetLogPrefix().CStr(), _fps_filter.GetSkipFrames());
-			}
-		}
-		else  // if (skip_frames_conf < 0)
-		{
-			// Disable skip frames
-		}
 
 		// If the user does not set the output Framerate, use the recommend framerate
 		// Cases where the framerate changes dynamically, such as when using WebRTC, WHIP, or SRTP protocols, were considered.
@@ -829,24 +759,20 @@ void FilterRescaler::WorkerThread()
 			}
 			else
 			{
+				auto start_time = std::chrono::high_resolution_clock::now();
 				DO_FILTER_ONCE(frame);
+				auto elapsed_time_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start_time).count();
+
+				// Update the weighted average frame processing time
+				// It includes the time taken for filtering + overlay + delivery to the encoder (including waiting time if there is a load on the encoder).
+				_weighted_avg_frame_processing_time_us = (_weighted_avg_frame_processing_time_us * 0.9) + (elapsed_time_us * 0.1); 
 			}
 		}
-#else
-		if (start_frame_syncronization)
-		{
-			std::lock_guard<std::mutex> lock(TranscodeGPU::GetInstance()->GetDeviceMutex());
 
-			DO_FILTER_ONCE(media_frame);
 
-			start_frame_syncronization = false;
-		}
-		else
-		{
-			DO_FILTER_ONCE(media_frame);
-		}
+#if _SKIP_FRAMES_ENABLED 
+		UpdateSkipFrames();
 #endif
-
 	}
 
 	// Flush the filter
@@ -938,3 +864,135 @@ bool FilterRescaler::SetHWContextToFilterIfNeed()
 
 	return true;
 }
+
+#if _SKIP_FRAMES_ENABLED 
+#define _SKIP_FRAMES_EVALUATION_INTERVAL_MS 	1000	// 1s
+#define _SKIP_FRAMES_RECOVERY_HOLD_INTERVAL_MS 	5000	// 5s
+#define _SKIP_FRAMES_ENSURE_FPS_MARGIN_RATIO 	0.9f	// 90%
+
+void FilterRescaler::UpdateSkipFrames()
+{
+	// Skip frame is disabled.
+	if (_skip_frames_conf < 0)
+	{
+		return;
+	}
+
+	// Static skip frames set by the user.
+	if (_skip_frames_conf > 0)
+	{
+		if (_fps_filter.GetSkipFrames() != _skip_frames_conf)
+		{
+			_fps_filter.SetSkipFrames(_skip_frames_conf);
+			logti("[%s] Changed skip frames to user config value: %d", GetLogPrefix().CStr(), _fps_filter.GetSkipFrames());
+		}
+		return;
+	}
+
+	auto curr_time = ov::Time::GetTimestampInMs();
+
+	if (_skip_frames_last_check_time == 0 || _skip_frames_last_changed_time == 0)
+	{
+		_skip_frames_last_check_time   = curr_time;
+		_skip_frames_last_changed_time = curr_time;
+	}
+
+	auto elapsed_check_time = curr_time - _skip_frames_last_check_time;
+	auto elapsed_stable_time = curr_time - _skip_frames_last_changed_time;
+
+	// Checking every 1 second is sufficient for skip frame adjustment
+	if (elapsed_check_time <= _SKIP_FRAMES_EVALUATION_INTERVAL_MS)
+	{
+		return;
+	}
+	_skip_frames_last_check_time = curr_time;
+
+	// Remain for debugging and future improvement for queue-based skip frame adjustment
+	// -----------------------------------------------------------------------------
+	// double actual_input_fps			   = _fps_filter.GetInputFramesPerSecond();
+	// double expected_input_fps		   = _fps_filter.GetInputFrameRate();
+
+	// double expected_output_fps		   = _fps_filter.GetExpectedOutputFramesPerSecond();
+
+	// int64_t queue_waiting_deviation_us = _input_buffer.GetWaitingTimeInUs();
+	// double expected_frame_interval_us  = (expected_input_fps > 0.0) ? (1000000.0 / expected_input_fps) : 0.0;
+	// bool is_queue_overload			   = (expected_frame_interval_us > 0.0) &&
+	// 						 (queue_waiting_deviation_us > expected_frame_interval_us * _SKIP_FRAMES_QUEUE_BACKLOG_RATIO);
+	// bool is_queue_stable = (expected_frame_interval_us > 0.0) &&
+	// 					   (queue_waiting_deviation_us < expected_frame_interval_us * _SKIP_FRAMES_QUEUE_RECOVERY_RATIO);
+
+	double fixed_output_fps			   = _fps_filter.GetOutputFrameRate();
+	double expected_output_fps		   = _fps_filter.GetExpectedOutputFramesPerSecond();
+	double actual_output_fps		   = _fps_filter.GetOutputFramesPerSecond();
+
+	if (_weighted_avg_frame_processing_time_us <= 0.0 || fixed_output_fps <= 0.0)
+	{
+		return;
+	}
+
+	// Calculate the maximum possible frames per second.
+	double max_frames_per_second = (1000000.0 / _weighted_avg_frame_processing_time_us);
+	// To ensure stability, set a margin and use OO% of the calculated maximum FPS.
+	double ideal_frames_per_second = max_frames_per_second * _SKIP_FRAMES_ENSURE_FPS_MARGIN_RATIO;
+
+	if (ideal_frames_per_second <= 0.0)
+	{
+		// If the ideal FPS is not a positive value, skip frame cannot be performed.
+		return;
+	}
+
+	// Calculate number of skip frames value to match the ideal FPS.
+	auto next_skip_frames = static_cast<int32_t>(std::ceil(fixed_output_fps / ideal_frames_per_second - 1.0));
+	if (next_skip_frames > fixed_output_fps - 1)
+	{
+		next_skip_frames = static_cast<int32_t>(std::floor(fixed_output_fps - 1));
+	}
+	else if (next_skip_frames < 0)
+	{
+		next_skip_frames = 0;
+	}
+
+	ov::String common_log = ov::String::FormatString("Possible FPS: %.2f/%.2f(ideal), Output FPS: %.2f/%.2f/%.2f", max_frames_per_second, ideal_frames_per_second, fixed_output_fps, expected_output_fps, actual_output_fps);
+
+	// Increase skip frames immediately when bottleneck occurs.
+	if (_skip_frames < next_skip_frames)
+	{
+		logtw("[%s] Changed SkipFrames %d -> %d (Bottleneck). %s", GetLogPrefix().CStr(), _skip_frames, next_skip_frames, common_log.CStr());
+
+		_skip_frames = next_skip_frames;
+		_fps_filter.SetSkipFrames(_skip_frames);
+
+		_skip_frames_last_changed_time = curr_time;
+	}
+	// Decrease skip frames slowly when the system is recovering.
+	else if ((_skip_frames > next_skip_frames))
+	{
+		if (elapsed_stable_time > _SKIP_FRAMES_RECOVERY_HOLD_INTERVAL_MS)
+		{
+			// Decay 20% per step (rate-limited)
+			int32_t rate_limited_next = _skip_frames - std::max(1, _skip_frames / 5); 
+			next_skip_frames = std::max(rate_limited_next, next_skip_frames);
+			if (next_skip_frames < 0)
+			{
+				next_skip_frames = 0;
+			}
+
+			logti("[%s] Changed SkipFrames %d -> %d (Recovery). %s", GetLogPrefix().CStr(), _skip_frames, next_skip_frames, common_log.CStr());
+
+			_skip_frames = next_skip_frames;
+			_fps_filter.SetSkipFrames(_skip_frames);
+
+			_skip_frames_last_changed_time = curr_time;
+		}
+		else
+		{
+			logtt("[%s] Hold SkipFrames %d (Waiting for recovery). %s", GetLogPrefix().CStr(), _skip_frames, common_log.CStr());
+		}
+	}
+	// Keep skip frames unchanged when the system is stable.
+	else
+	{
+		logtt("[%s] Unchanged SkipFrames %d (Stable). %s", GetLogPrefix().CStr(), _skip_frames, common_log.CStr());
+	}
+}
+#endif // _SKIP_FRAMES_ENABLED
