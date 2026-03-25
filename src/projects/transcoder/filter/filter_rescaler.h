@@ -15,8 +15,8 @@
 #include "filter_base.h"
 #include "filter_fps.h"
 
-#define _SKIP_FRAMES_ENABLED true
-#define _SIMULATE_PROCESSING_DELAY_ENABLED false
+#define _SKIP_FRAMES_ENABLED 1
+#define _SIMULATE_PROCESSING_DELAY_ENABLED 0
 
 class FilterRescaler : public FilterBase
 {
@@ -60,5 +60,5 @@ private:
 #endif	
 
 	// Weighted average of frame processing time.
-	int64_t _weighted_avg_frame_processing_time_us = 0;
+	double _weighted_avg_frame_processing_time_us = 0.0;
 };

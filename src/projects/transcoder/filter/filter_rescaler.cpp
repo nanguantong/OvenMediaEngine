@@ -925,13 +925,13 @@ void FilterRescaler::UpdateSkipFrames()
 	double expected_output_fps		   = _fps_filter.GetExpectedOutputFramesPerSecond();
 	double actual_output_fps		   = _fps_filter.GetOutputFramesPerSecond();
 
-	if (_weighted_avg_frame_processing_time_us <= 0 || fixed_output_fps <= 0)
+	if (_weighted_avg_frame_processing_time_us <= 0.0 || fixed_output_fps <= 0.0)
 	{
 		return;
 	}
 
 	// Calculate the maximum possible frames per second.
-	double max_frames_per_second = (1000000 / _weighted_avg_frame_processing_time_us);
+	double max_frames_per_second = (1000000.0 / _weighted_avg_frame_processing_time_us);
 	// To ensure stability, set a margin and use OO% of the calculated maximum FPS.
 	double ideal_frames_per_second = max_frames_per_second * _SKIP_FRAMES_ENSURE_FPS_MARGIN_RATIO;
 
@@ -942,7 +942,7 @@ void FilterRescaler::UpdateSkipFrames()
 	}
 
 	// Calculate number of skip frames value to match the ideal FPS.
-	auto next_skip_frames = static_cast<int32_t>(std::round(fixed_output_fps / ideal_frames_per_second));
+	auto next_skip_frames = static_cast<int32_t>(std::ceil(fixed_output_fps / ideal_frames_per_second - 1.0));
 	if (next_skip_frames > fixed_output_fps - 1)
 	{
 		next_skip_frames = static_cast<int32_t>(std::floor(fixed_output_fps - 1));
