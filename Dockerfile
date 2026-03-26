@@ -49,7 +49,7 @@ FROM    base_build AS build
 WORKDIR /tmp
 
 ARG     USE_GPU
-ARG     OME_VERSION=master
+ARG     OME_VERSION=v0.20.5
 ARG     USE_LOCAL=false
 ARG     STRIP=true
 
