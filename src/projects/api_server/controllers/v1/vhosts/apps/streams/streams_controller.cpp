@@ -117,22 +117,32 @@ namespace api
 						logti(" - %s", url.CStr());
 					}
 
-					auto result = orchestrator->RequestPullStreamWithUrls(source_url, app->GetVHostAppName(), stream_name, request_urls, 0, properties);
+					auto error = orchestrator->RequestPullStreamWithUrls(source_url, app->GetVHostAppName(), stream_name, request_urls, 0, properties);
 
-					if (result)
+					if (error == nullptr)
 					{
 						std::vector<std::shared_ptr<mon::StreamMetrics>> output_streams;
 						stream = GetStream(app, stream_name, &output_streams);
 						if (stream == nullptr)
 						{
-							throw http::HttpError(http::StatusCode::BadGateway, ov::String::FormatString("Could not pull the stream : %s", source_url->ToUrlString(true).CStr()));
+							throw http::HttpError(http::StatusCode::BadGateway, "Could not pull the stream : %s", source_url->ToUrlString(true).CStr());
 						}
 
 						return {http::StatusCode::Created};
 					}
 					else
 					{
-						throw http::HttpError(http::StatusCode::BadGateway, ov::String::FormatString("Could not pull the stream : %s", source_url->ToUrlString(true).CStr()));
+						logte("Could not pull stream [%s/%s]: %s",
+							  app->GetVHostAppName().CStr(),
+							  stream_name.CStr(),
+							  error->What());
+
+						if (error->GetCommonErrorCode() == CommonErrorCode::INVALID_REQUEST)
+						{
+							throw http::HttpError(http::StatusCode::BadRequest, error->GetMessage().CStr());
+						}
+
+						throw http::HttpError(http::StatusCode::BadGateway, "Could not pull the stream : %s", source_url->ToUrlString(true).CStr());
 					}
 				}
 				else
