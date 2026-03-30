@@ -14,38 +14,40 @@ Check your GPU and driver status using:
 
 ```
 $ nvidia-smi
-Fri Oct 10 21:34:25 2025       
-+-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 580.82.09              Driver Version: 580.82.09      CUDA Version: 13.0     |
-+-----------------------------------------+------------------------+----------------------+
-| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
-| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
-|                                         |                        |               MIG M. |
-|=========================================+========================+======================|
-|   0  NVIDIA GeForce GTX 1060 3GB    Off |   00000000:0A:00.0 Off |                  N/A |
-| 53%   29C    P8              6W /  120W |     135MiB /   3072MiB |      0%      Default |
-|                                         |                        |                  N/A |
-+-----------------------------------------+------------------------+----------------------+
-
-+-----------------------------------------------------------------------------------------+
-| Processes:                                                                              |
-|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
-|        ID   ID                                                               Usage      |
-|=========================================================================================|
-|    0   N/A  N/A            1430      C   /usr/bin/OvenMediaEngine                 60MiB |
-|    0   N/A  N/A            2017      G   /usr/lib/xorg/Xorg                       56MiB |
-|    0   N/A  N/A            2232      G   /usr/bin/gnome-shell                      5MiB |
-+-----------------------------------------------------------------------------------------+
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 535.288.01             Driver Version: 535.288.01   CUDA Version: 12.2     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  NVIDIA GeForce GTX 1050        On  | 00000000:3B:00.0  On |                  N/A |
+| 20%   39C    P8              N/A /  75W |    204MiB /  2048MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+|   1  NVIDIA RTX 4000 SFF Ada ...    On  | 00000000:AF:00.0 Off |                  Off |
+| 30%   38C    P8               5W /  70W |    171MiB / 20475MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|    0   N/A  N/A    802940      C   ...prise/src/bin/DEBUG/OvenMediaEngine       40MiB |
+|    1   N/A  N/A    802940      C   ...prise/src/bin/DEBUG/OvenMediaEngine      158MiB |
++---------------------------------------------------------------------------------------+
 ```
 
 If a driver is not installed, download it from the NVIDIA website or use the helper script provided in the OME repository.
 
 Official driver: [https://www.nvidia.com/en-us/drivers/](https://www.nvidia.com/en-us/drivers/)
 
-OME install script: [https://github.com/AirenSoft/OvenMediaEngine/blob/master/misc/install\_nvidia\_driver.sh](../../misc/install_nvidia_driver.sh)
+OME install script: [https://github.com/OvenMediaLabs/OvenMediaEngine/blob/master/misc/install\_nvidia\_driver.sh](https://github.com/OvenMediaLabs/OvenMediaEngine/blob/master/misc/install_nvidia_driver.sh)
 
 {% hint style="warning" %}
-The script installs the latest driver. Ensure your GPU supports the version being installed.
+This script installs the versions recommended by OME. If you want to install the latest version, change the parameters.
 {% endhint %}
 
 ### CUDA Toolkit
@@ -54,7 +56,7 @@ CUDA Toolkit is required to build whisper.cpp with GPU acceleration.
 
 * Download from: [https://developer.nvidia.com/cuda-downloads](https://developer.nvidia.com/cuda-downloads)
 * Use a version that matches your GPU generation.
-  * For example, GeForce 10xx series (e.g., GTX 1060) typically requires **CUDA 11.8**. Newer toolkits such as 13.x may not support older GPUs.
+  * Recommended CUDA Toolkit : v12.0 \~ v12.8
 
 ### Build and Install whisper.cpp
 
