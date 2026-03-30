@@ -48,7 +48,7 @@ $ nvidia-smi
 |=======================================================================================|
 |    0   N/A  N/A    802940      C   ...prise/src/bin/DEBUG/OvenMediaEngine       40MiB |
 |    1   N/A  N/A    802940      C   ...prise/src/bin/DEBUG/OvenMediaEngine      158MiB |
-+---------------------------------------------------------------------------------------+                                                                                   
++---------------------------------------------------------------------------------------+
 ```
 
 #### 2 . Prerequisites
@@ -136,14 +136,13 @@ To use hardware acceleration, set the **HardwareAcceleration** option to **true*
         Setting for Hardware Modules.
             - nv : Nvidia Video Codec SDK
             - xma :Xilinx Media Accelerator
-            - qsv :Intel Quick Sync Video
             - nilogan: Netint VPU
 
         You can use multiple modules by separating them with commas.
         For example, if you want to use xma and nv, you can set it as follows.
 
         <Modules>[ModuleName]:[DeviceId],[ModuleName]:[DeviceId],...</Modules>
-        <Modules>xma:0,nv:0</Modules>
+         <Modules>nv:0,nv:1,xma:0</Modules>
         -->
         <Decoder>
                 <Enable>true</Enable>
