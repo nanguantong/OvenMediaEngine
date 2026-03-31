@@ -74,7 +74,7 @@ protected:
 	// -1: force keyframe
 	int64_t _accumulate_frame_duration;	
 	// Time interval from the last inserted keyframe
-	int64_t _last_keyframe_delta_time;
+	int64_t _last_keyframe_delta_time = 0;
 
 	AVCodecContext *_codec_context = nullptr;
 	AVPacket *_packet = nullptr;

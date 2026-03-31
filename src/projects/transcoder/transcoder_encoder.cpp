@@ -625,6 +625,7 @@ bool TranscodeEncoder::PopProcess()
 		}
 	}
 
+#if DEBUG
 	if (GetRefTrack()->GetMediaType() == cmn::MediaType::Video && media_packet->IsKeyFrame() == true)
 	{
 		logtt("keyframe is encoded. pts:%" PRId64 "ms, dts:%" PRId64 "ms, delta:%" PRId64 "ms",
@@ -632,6 +633,7 @@ bool TranscodeEncoder::PopProcess()
 			  static_cast<int64_t>(media_packet->GetDts() * 1000 / GetRefTrack()->GetTimeBase().GetTimescale()),
 			  static_cast<int64_t>(_last_keyframe_delta_time * 1000 / GetRefTrack()->GetTimeBase().GetTimescale()));
 	}
+#endif
 	
 	// Call the complete handler.
 	Complete(TranscodeResult::DataReady, std::move(media_packet));
