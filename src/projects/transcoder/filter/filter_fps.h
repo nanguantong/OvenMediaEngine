@@ -53,7 +53,11 @@ public:
 	{
 		_output_frame_copy_mode = mode;
 	}
-	
+
+
+	static const int32_t SkipFramesDisabled = -1;
+	static const int32_t SkipFramesMin		= 0;
+
 private:
 	cmn::Timebase _input_timebase;
 	double _input_framerate;
@@ -64,9 +68,10 @@ private:
 	// Prevents the frame from being duplicated indefinitely.
 	int32_t _max_dupulicate_frames = 5;
 
-	// The number of frames to skip based on the output framerate
-	// -1:  disabled
-	int32_t _skip_frames = -1;
+	// Skip frames configuration
+	// -1: disabled
+	// >=0: the number of frames to skip (e.g., 0 means no skip, 1 means skip 1 frame after every output frame)
+	int32_t _skip_frames = SkipFramesDisabled;
 	
 	// Buffer for storing frames
 	std::vector<std::shared_ptr<MediaFrame>> _frames;

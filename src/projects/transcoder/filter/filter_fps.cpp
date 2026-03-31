@@ -17,7 +17,7 @@ FilterFps::FilterFps()
 {
 	_input_framerate = 0;
 	_output_framerate = 0;
-	_skip_frames = -1; 
+	_skip_frames = SkipFramesDisabled; 
 
 	_curr_pts = AV_NOPTS_VALUE;
 	_next_pts = AV_NOPTS_VALUE;
@@ -165,7 +165,7 @@ std::shared_ptr<MediaFrame> FilterFps::Pop()
 
 		// Skip Frame
 		_stat_ideal_output_frame_count++;
-		if ((_skip_frames > 0) && (_stat_ideal_output_frame_count % (_skip_frames + 1) != 0))
+		if ((_skip_frames > SkipFramesMin) && (_stat_ideal_output_frame_count % (_skip_frames + 1) != 0))
 		{
 			_stat_skip_frame_count++;
 			continue;
@@ -177,9 +177,8 @@ std::shared_ptr<MediaFrame> FilterFps::Pop()
 													 (AVRational){_input_timebase.GetNum(), _input_timebase.GetDen()},
 													 (AVRounding)(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
 
-		// Calculate the next frame's PTS based on _skip_frames (disabled: -1).
-		// If _skip_frames < 0, no frames are skipped and delta is 0.
-		int64_t delta = (_skip_frames <= 0) ? 0 : _skip_frames;
+		// Calculate the next frame's PTS based on _skip_frames.
+		int64_t delta = (_skip_frames <= SkipFramesMin) ? 0 : _skip_frames;
 		int64_t next_timebase_pts = av_rescale_q_rnd(_next_pts + delta,
 													 av_inv_q(av_d2q(_output_framerate, INT_MAX)),
 													 (AVRational){_input_timebase.GetNum(), _input_timebase.GetDen()},
@@ -230,7 +229,7 @@ double FilterFps::GetInputFramesPerSecond() const
 
 double FilterFps::GetExpectedOutputFramesPerSecond() const
 {
-	if (_skip_frames <= 0)
+	if (_skip_frames <= SkipFramesMin)
 	{
 		return _output_framerate;
 	}

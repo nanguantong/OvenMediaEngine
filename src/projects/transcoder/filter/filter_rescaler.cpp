@@ -323,15 +323,15 @@ bool FilterRescaler::InitializeFpsFilter()
 	// Configure skip frames
 	int32_t skip_frames_config = _output_track->GetSkipFramesByConfig();
 #if _SKIP_FRAMES_ENABLED
-	int32_t skip_frames = (skip_frames_config >= 0) ? skip_frames_config : -1;
+	int32_t skip_frames = (skip_frames_config >= FilterFps::SkipFramesMin) ? skip_frames_config : FilterFps::SkipFramesDisabled;
 	_fps_filter.SetSkipFrames(skip_frames);
 	
 	// If skip frames is enabled, maintain input framerate; otherwise use output framerate
-	bool is_skip_enabled = (skip_frames >= 0);
+	bool is_skip_enabled = (skip_frames >= FilterFps::SkipFramesMin);
 	float output_framerate = is_skip_enabled ? _input_track->GetFrameRate() : _output_track->GetFrameRate();
 	_fps_filter.SetOutputFrameRate(output_framerate);
 #else
-	_fps_filter.SetSkipFrames(-1);  // Disabled
+	_fps_filter.SetSkipFrames(FilterFps::SkipFramesDisabled);
 	_fps_filter.SetOutputFrameRate(_output_track->GetFrameRate());
 #endif
 
@@ -889,6 +889,8 @@ void FilterRescaler::UpdateSkipFrames()
 		return;
 	}
 
+	// Automatic skip frame adjustment.
+
 	auto curr_time = ov::Time::GetTimestampInMs();
 
 	if (_skip_frames_last_check_time == 0 || _skip_frames_last_changed_time == 0)
@@ -947,9 +949,9 @@ void FilterRescaler::UpdateSkipFrames()
 	{
 		next_skip_frames = static_cast<int32_t>(std::floor(fixed_output_fps - 1));
 	}
-	else if (next_skip_frames < 0)
+	else if (next_skip_frames < FilterFps::SkipFramesMin)
 	{
-		next_skip_frames = 0;
+		next_skip_frames = FilterFps::SkipFramesMin;
 	}
 
 	ov::String common_log = ov::String::FormatString("Possible FPS: %.2f/%.2f(ideal), Output FPS: %.2f/%.2f/%.2f", max_frames_per_second, ideal_frames_per_second, fixed_output_fps, expected_output_fps, actual_output_fps);
@@ -972,9 +974,9 @@ void FilterRescaler::UpdateSkipFrames()
 			// Decay 20% per step (rate-limited)
 			int32_t rate_limited_next = _skip_frames - std::max(1, _skip_frames / 5); 
 			next_skip_frames = std::max(rate_limited_next, next_skip_frames);
-			if (next_skip_frames < 0)
+			if (next_skip_frames < FilterFps::SkipFramesMin)
 			{
-				next_skip_frames = 0;
+				next_skip_frames = FilterFps::SkipFramesMin;
 			}
 
 			logti("[%s] Changed SkipFrames %d -> %d (Recovery). %s", GetLogPrefix().CStr(), _skip_frames, next_skip_frames, common_log.CStr());
