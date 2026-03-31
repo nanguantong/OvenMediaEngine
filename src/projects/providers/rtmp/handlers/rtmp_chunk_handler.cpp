@@ -355,7 +355,7 @@ namespace pvd::rtmp
 	{
 		return ov::String::FormatString(
 			"Encoder: %s(%d) (raw: %s))\n"
-			"Audio: %s (raw: %s), layout: %s, bits: %s, samplerate: %s, sampleindex: %s, bitrate: %s\n"
+			"Audio: %s (raw: %s), layout: %s, bits: %s, samplerate: %s, bitrate: %s\n"
 			"Video: %s (raw: %s), width: %s, height: %s, framerate: %s, bitrate: %s",
 			// Encoder information
 			EnumToString(encoder_type), static_cast<int>(encoder_type),
@@ -366,7 +366,6 @@ namespace pvd::rtmp
 			OptEnumToString(audio.channel_layout, cmn::AudioChannel::GetLayoutName).CStr(),
 			OptNumberToString(audio.bits).CStr(),
 			OptNumberToString(audio.samplerate).CStr(),
-			OptNumberToString(audio.sampleindex).CStr(),
 			OptNumberToString(audio.bitrate).CStr(),
 			// Video information
 			OptEnumToString(video.codec_id, cmn::GetCodecIdString).CStr(),
