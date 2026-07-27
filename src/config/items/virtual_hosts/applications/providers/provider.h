@@ -25,16 +25,27 @@ namespace cfg
 					TimestampMode _timestamp_mode = TimestampMode::Auto;
 					bool _use_incoming_timestamp  = false;	// For backward compatibility
 					ov::String _timestamp_mode_str;
-					int _packet_silence_timeout_ms = 0;	 // Default value for packet silence timeout
+					int _packet_silence_timeout_ms				  = 0;	// Default value for packet silence timeout
+					// Whether `_packet_silence_timeout_ms` currently holds the value the operator asked
+					// for, rather than a provider default. Set while parsing `PacketSilenceTimeoutMs`
+					// and cleared again by `SetDefaultPacketSilenceTimeoutMs()`.
+					bool _is_packet_silence_timeout_ms_configured = false;
 
 				public:
 					virtual ProviderType GetType() const = 0;
 					CFG_DECLARE_CONST_REF_GETTER_OF(GetMaxConnection, _max_connection)
 					CFG_DECLARE_CONST_REF_GETTER_OF(GetTimestampMode, _timestamp_mode)
 					CFG_DECLARE_CONST_REF_GETTER_OF(GetPacketSilenceTimeoutMs, _packet_silence_timeout_ms)
-					void SetPacketSilenceTimeoutMs(int timeout_ms)
+					bool IsPacketSilenceTimeoutMsConfigured() const
 					{
-						_packet_silence_timeout_ms = timeout_ms;
+						return _is_packet_silence_timeout_ms_configured;
+					}
+					// Overrides the value with a provider default. The value is no longer the operator's
+					// after this, so anything that must honor only an explicit setting stops seeing it.
+					void SetDefaultPacketSilenceTimeoutMs(int timeout_ms)
+					{
+						_packet_silence_timeout_ms				 = timeout_ms;
+						_is_packet_silence_timeout_ms_configured = false;
 					}
 
 				protected:
@@ -73,6 +84,17 @@ namespace cfg
 
 						Register<Optional>("PacketSilenceTimeoutMs", &_packet_silence_timeout_ms, nullptr,
 										   [=]() -> std::shared_ptr<ConfigError> {
+											   // A negative value would defeat both guards in the channel task runner:
+											   // it is not `0`, so the timeout counts as active, and every elapsed value
+											   // exceeds it - including the `-1` that means no data has arrived yet.
+											   if (_packet_silence_timeout_ms < 0)
+											   {
+												   return CreateConfigErrorPtr("PacketSilenceTimeoutMs must not be negative: %d", _packet_silence_timeout_ms);
+											   }
+
+											   // This callback only runs when the option is present in the configuration
+											   _is_packet_silence_timeout_ms_configured = true;
+
 											   switch (GetType())
 											   {
 												   case ProviderType::Rtmp:
