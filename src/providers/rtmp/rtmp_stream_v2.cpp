@@ -88,6 +88,14 @@ namespace pvd::rtmp
 		return PushStream::Stop();
 	}
 
+	void RtmpStreamV2::CloseTransport()
+	{
+		if ((_remote != nullptr) && (_remote->GetState() == ov::SocketState::Connected))
+		{
+			_remote->Close();
+		}
+	}
+
 	bool RtmpStreamV2::CheckStreamExpired() const
 	{
 		return ((_stream_expired_msec != 0) && (_stream_expired_msec < ov::Clock::NowMSec()));
@@ -392,9 +400,10 @@ namespace pvd::rtmp
 		_chunk_handler.UpdateNamePath(GetNamePath());
 		_chunk_handler.UpdateQueueAlias();
 
-		// Now that the application is resolved, honor its configured `PacketSilenceTimeoutMs`
-		// during the pre-publish window as well.
-		ApplyConfiguredPacketSilenceTimeoutMs(_vhost_app_name);
+		// A source may send nothing between here and its first media,
+		// which is the window `FirstMediaWaitTimeoutMs` sizes.
+		// Without that option this applies `PacketSilenceTimeoutMs`.
+		ApplyConfiguredFirstMediaWaitTimeoutMs(_vhost_app_name);
 
 		return true;
 	}

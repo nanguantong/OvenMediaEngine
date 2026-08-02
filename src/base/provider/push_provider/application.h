@@ -26,6 +26,11 @@ namespace pvd
 		// `is_configured` reports whether that value is the operator's rather than a default.
 		time_t GetConfiguredPacketSilenceTimeoutMs(ProviderType provider_type, bool *is_configured = nullptr);
 
+		// Returns the `FirstMediaWaitTimeoutMs` configured for this provider type in this application,
+		// or `0` when the option is absent. The option has no default: `is_configured` reports whether
+		// the operator set it, and nothing applies it otherwise.
+		time_t GetConfiguredFirstMediaWaitTimeoutMs(ProviderType provider_type, bool *is_configured = nullptr);
+
 	protected:
 		PushApplication(const std::shared_ptr<PushProvider> &provider, const info::Application &application_info);
 		virtual bool DeleteAllStreams() override;		

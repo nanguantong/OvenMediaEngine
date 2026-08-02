@@ -20,6 +20,7 @@
 #include "base/info/application.h"
 #include "base/provider/push_provider/application.h"
 #include "base/provider/push_provider/provider.h"
+#include "rtmp_media_frame.h"
 #include "rtmp_provider_private.h"
 
 /*
@@ -141,6 +142,14 @@ namespace pvd
 		}
 
 		return PushStream::Stop();
+	}
+
+	void RtmpStream::CloseTransport()
+	{
+		if ((_remote != nullptr) && (_remote->GetState() == ov::SocketState::Connected))
+		{
+			_remote->Close();
+		}
 	}
 
 	bool RtmpStream::CheckStreamExpired()
@@ -492,11 +501,19 @@ namespace pvd
 
 		if (app_info.IsValid())
 		{
-			_app_id = app_info.GetId();
+			_app_id			= app_info.GetId();
 
-			// Now that the application is resolved, honor its configured `PacketSilenceTimeoutMs`
-			// during the pre-publish window as well.
-			ApplyConfiguredPacketSilenceTimeoutMs(vhost_app_name);
+			// Admission webhooks may have redirected the stream,
+			// so this is the first point where the final application is known.
+			// Ending the first-media wait reads it again, before `PublishStream()` recomputes the member.
+			_vhost_app_name = app_info.GetVHostAppName();
+			UpdateNamePath(_vhost_app_name);
+			_import_chunk->UpdateNamePath(GetNamePath());
+
+			// A source may send nothing between here and its first media,
+			// which is the window `FirstMediaWaitTimeoutMs` sizes.
+			// Without that option this applies `PacketSilenceTimeoutMs`.
+			ApplyConfiguredFirstMediaWaitTimeoutMs(_vhost_app_name);
 
 			return true;
 		}
@@ -1607,6 +1624,12 @@ namespace pvd
 
 		if (!IsPublished())
 		{
+			if (IsWaitingForFirstMedia() && rtmp::HasVideoFrame(payload))
+			{
+				// Publishing may still be waiting for another track, but the wait for media is over.
+				EndFirstMediaWait(_vhost_app_name);
+			}
+
 			_media_info->video_stream_coming = true;
 
 			if (CheckReadyToPublish() == true)
@@ -1797,6 +1820,12 @@ namespace pvd
 
 		if (!IsPublished())
 		{
+			if (IsWaitingForFirstMedia() && rtmp::HasAudioFrame(message->payload))
+			{
+				// Publishing may still be waiting for another track, but the wait for media is over.
+				EndFirstMediaWait(_vhost_app_name);
+			}
+
 			_media_info->audio_stream_coming = true;
 
 			if (CheckReadyToPublish() == true)
