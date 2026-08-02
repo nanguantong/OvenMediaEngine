@@ -12,7 +12,7 @@
 using namespace cmn;
 
 #define PTS_INCREMENT_LIMIT 15
-#define MAX_QUEUE_SIZE 5
+#define MAX_QUEUE_SIZE 2
 #define ENABLE_QUEUE_EXCEED_WAIT true
 
 TranscodeFilter::TranscodeFilter()
@@ -264,12 +264,33 @@ void TranscodeFilter::ThreadLoop()
 		while (!_kill_flag)
 		{
 			auto recv = base->PopCompletedFrameInternal();
-			if (recv.result == TranscodeResult::Again)
+			if (recv.result == TranscodeResult::DataReady)
 			{
+				OnComplete(recv.result, std::move(recv.frame));
+
+				// Keep draining to check whether more frames are pending.
+				continue;
+			}
+			else if (recv.result == TranscodeResult::Again)
+			{
+				// The filter has no more frames to hand over; leave the loop.
 				break;
 			}
+			else if (recv.result == TranscodeResult::DataError)
+			{
+				logte("[%s] Error occurred while draining filtered frames. reason(%s)", _input_stream_info->GetUri().CStr(), recv.error.CStr());
 
-			OnComplete(recv.result, std::move(recv.frame));
+				// Report the error, then stop draining rather than asking the filter
+				// again - it would keep returning the same error.
+				OnComplete(recv.result, std::move(recv.frame));
+				break;
+			}
+			else
+			{
+				// Unhandled result; leave the loop rather than spinning forever.
+				logtw("[%s] Unexpected result while draining filtered frames. result(%d)", _input_stream_info->GetUri().CStr(), static_cast<int32_t>(recv.result));
+				break;
+			}
 		}
 	}
 }
@@ -295,6 +316,12 @@ void TranscodeFilter::Stop()
 
 bool TranscodeFilter::SendBuffer(std::shared_ptr<MediaFrame> buffer)
 {
+	if (IsReadyToProcess() == false)
+	{
+		return false;
+	}
+
+	// Check if the filter needs to be updated
 	if (IsNeedUpdate(buffer) == true)
 	{
 		logtd("[%s] Filter needs to be updated. reinitialize the filter. track:%u, pts:%" PRId64,
@@ -303,14 +330,54 @@ bool TranscodeFilter::SendBuffer(std::shared_ptr<MediaFrame> buffer)
 		_setup_pending = true;
 	}
 
+	// Enqueue the buffer to the input buffer queue for processing by the worker thread.
 	_input_buffer.Enqueue(std::move(buffer));
+
+	return true;
+}
+
+bool TranscodeFilter::IsReadyToProcess()
+{
+	ov::SharedLockGuard lock(_mutex);
+
+	if (_filter_base == nullptr)
+	{
+		// This case can only occur if the TranscoderFilter object has been destroyed, so it
+		// should not happen. However, we handle the exception just in case.
+		return false;
+	}
+
+	auto state = _filter_base->GetState();
+	if (state == FilterBase::State::ERROR)
+	{
+		// Reported once per failure. Frames are rejected from here on and the worker stops
+		// reporting, so this is the last signal that the track went dark.
+		if (_failure_reported.exchange(true) == false)
+		{
+			logtw("[%s] Filter has failed, so frames are dropped from now on. track:%u",
+				  _input_stream_info->GetUri().CStr(), GetInputTrack()->GetId());
+		}
+
+		return false;
+	}
+
+	if (state == FilterBase::State::STOPPED)
+	{
+		// Expected while the filter is being torn down.
+		logtd("[%s] Filter is not ready to process frames. track:%u",
+			  _input_stream_info->GetUri().CStr(), GetInputTrack()->GetId());
+
+		return false;
+	}
+
+	_failure_reported = false;
 
 	return true;
 }
 
 bool TranscodeFilter::IsNeedUpdate(std::shared_ptr<MediaFrame> buffer)
 {
-	ov::SharedLockGuard lock(_mutex);
+	ov::LockGuard lock(_mutex);
 
 	// Single track(paired with encoder) does not need to be updated.
 	if (_filter_base == nullptr || _filter_base->IsSingleTrack() == true)
@@ -340,14 +407,9 @@ bool TranscodeFilter::IsNeedUpdate(std::shared_ptr<MediaFrame> buffer)
 		return true;
 	}
 
-	// NOTE: Input format changes (video resolution/pixel format/color tags and
-	// audio properties) are detected per frame in ThreadLoop(). A flag set here is
-	// consumed at whatever frame the worker dequeues next, so it cannot be tied to
-	// the frame that triggered it.
-
 	// Check #2 - Filter error state
-	//  When using an XMA scaler, resource allocation failures may occur intermittently.
-	//  Avoid problems in this way until the underlying problem is resolved.
+	//  Rarely reached, because SendBuffer() already rejects frames in the ERROR state.
+	//  TODO(Keukhan): Will be removed together with the XMA code.
 	if (_filter_base->GetState() == FilterBase::State::ERROR &&
 		GetInputTrack()->GetCodecModuleId() == cmn::MediaCodecModuleId::XMA &&
 		GetOutputTrack()->GetCodecModuleId() == cmn::MediaCodecModuleId::XMA)
